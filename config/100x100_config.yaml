@@ -1,0 +1,29 @@
+### Configuration Parameters:
+#   timestamp_col (str): Name of the column containing date and time
+#   site_col (str): Name of the column containing unique identifiers for the monitoring site
+#   value_col (str): Name of the column containing the values for the pollutant of interest
+#   datetime_format (str): Format of the timestamp column usign python datetime syntax
+#       For example: 2026-01-01 09:27:11 -> %Y-%m-%d %H:%M:%S 
+#       For more info, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior
+#   lat_col (str): Name of the column containing the latitude of the monitoring site
+#   lon_col (str): Name of the column containing the longitude of the monitoring site
+
+### Required Inputs ###
+timestamp_col: Datetime
+site_col: Site
+value_col: hourly_BC
+datetime_format: "%m/%d/%Y %H:%M"
+lat_col: Latitude
+lon_col: Longitude
+
+### Optional Parameters:
+#   file_delimiter (str):
+#   output_file_path (str):
+#   confidence_col (str): column containing measurement confidence values
+#   confidence_threshold (int | float): confidence value measurements must meet to be included
+#       in the data
+
+file_delimiter:
+output_file_path:
+confidence_col:
+confidence_threshold:
