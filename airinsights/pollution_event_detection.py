@@ -107,7 +107,7 @@ def pollution_event(input_data : pd.DataFrame,
         .rolling( 
             index_column=config_dict['timestamp_col'],
             period=f"{window_size}d",
-            group_by=[config_dict['site_col'], "hour"]
+            group_by=[config_dict['site_col'],config_dict['pollutant_col'], "hour"]
         ).agg(
             median = pl.col('value_log').median(),
             MAD = (pl.col('value_log') - pl.col('value_log').median()).abs().median(),
@@ -117,7 +117,7 @@ def pollution_event(input_data : pd.DataFrame,
     # --- Join back to other columns ---
     # --- Compute z-scores (z-score mod for MAD using scalar) and classify event (if >= 3 it is 'extreme', if >= 2 it is 'unusual') ---
 
-    df = df.merge(MAD,on=[config_dict['site_col'],config_dict['timestamp_col'],"hour"],how="left")
+    df = df.merge(MAD,on=[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],"hour"],how="left")
     df["z_score_mod"] = np.where(df["MAD"] > 0, # don't calculate if MAD is zero
                                  (df["value_log"] - df["median"]) / (1.4826 * df["MAD"]),
                                  np.nan)
