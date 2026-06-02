@@ -118,7 +118,9 @@ def pollution_event(input_data : pd.DataFrame,
     # --- Compute z-scores (z-score mod for MAD using scalar) and classify event (if >= 3 it is 'extreme', if >= 2 it is 'unusual') ---
 
     df = df.merge(MAD,on=[config_dict['site_col'],config_dict['timestamp_col'],"hour"],how="left")
-    df["z_score_mod"] = (df["value_log"] - df["median"]) / (1.4826 * df["MAD"])
+    df["z_score_mod"] = np.where(df["MAD"] > 0, # don't calculate if MAD is zero
+                                 (df["value_log"] - df["median"]) / (1.4826 * df["MAD"]),
+                                 np.nan)
     df["event_type"] = np.select([df["days_captured"].isna(), df["z_score_mod"] >= 3, df["z_score_mod"] >= 2],
               ["Insufficient number of days captured", "Extremely high", "Unusually high"], None)
 
