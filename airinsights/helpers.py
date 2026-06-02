@@ -153,15 +153,22 @@ def read_aqdata_file(
     # --- Take the file extension to determine which pandas function to use
     file_ext = Path(data_path).suffix.lower()
     if file_ext == '.csv':
-        df = pd.read_csv(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['datetime_format'],
-                        dtype={config_dict['value_col']: float}) 
+        df = pd.read_csv(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['datetime_format']) 
     elif file_ext in ('.xls', '.xlsx', '.xlsm'):
-        df = pd.read_excel(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['datetime_format'],
-                        dtype={config_dict['value_col']: float})
+        df = pd.read_excel(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['datetime_format'])
     elif file_ext == '.json':
-        df = pd.read_json(input_file, dtype={config_dict['value_col']: float})
+        df = pd.read_json(input_file)
         df[config_dict['timestamp_col']] = pd.to_datetime(df[config_dict['timestamp_col']], format=config_dict['datetime_format'])
     else:
         raise ValueError(f"Unsupported file format: {file_ext}. Supported file formats are csv, json, and excel files (xsl, xlsx, xlsm)")
     
+    # --- If data is wide format, pivot to long using specified columns
+    if config_dict['pollutant_col'] is None:  # if there is no column for pollutant names, it is wide format
+        df = df.melt(value_vars=list(config_dict['pollutants'].values()),var_name='pollutant', value_name='value')
+    else: # else it is long format. rename the pollutant and value columns to be universal
+        df =  df.rename(columns={
+            config_dict['pollutant_col']: 'pollutant',
+            config_dict['value_col']: 'value',
+            })
+
     return df, config_dict
