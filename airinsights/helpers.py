@@ -163,12 +163,7 @@ def read_aqdata_file(
         raise ValueError(f"Unsupported file format: {file_ext}. Supported file formats are csv, json, and excel files (xsl, xlsx, xlsm)")
     
     # --- If data is wide format, pivot to long using specified columns
-    if config_dict['pollutant_col'] is None:  # if there is no column for pollutant names, it is wide format
-        df = df.melt(value_vars=list(config_dict['pollutants'].values()),var_name='pollutant', value_name='value')
-    else: # else it is long format. rename the pollutant and value columns to be universal
-        df =  df.rename(columns={
-            config_dict['pollutant_col']: 'pollutant',
-            config_dict['value_col']: 'value',
-            })
+    if config_dict['wide_format']: 
+        df = df.melt(value_vars=list(config_dict['pollutants'].values()),var_name=config_dict['pollutant_col'], value_name=config_dict['value_col'])
 
     return df, config_dict
