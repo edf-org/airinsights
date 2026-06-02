@@ -104,9 +104,11 @@ def load_config(
     # --- Check for required parameters --- 
     try:
         config_dict['timestamp_col']
+        config_dict['timestamp_format']
+        config_dict['timestamp_tz']
+        config_dict['pollutant_col']
+        config_dict['pollutants']
         config_dict['site_col']
-        config_dict['value_col'] # could be a string or a list, if it's a list then run through all the columns
-        config_dict['datetime_format']
         config_dict['lat_col']
         config_dict['lon_col']
     except KeyError as missing_key:
@@ -139,7 +141,7 @@ def read_aqdata_file(
     data_path = Path(input_file)
     # --- Load a default configuration if not specified in the function call
     if config is None:
-        print(f'No configuration file specified. Using the default.')
+        print('No configuration file specified. Using the default.')
         with importlib.resources.path("airinsights", 'config/100x100_config.yaml') as default_config:
             config_path = default_config
     else:
