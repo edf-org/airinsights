@@ -129,8 +129,8 @@ def pollution_event(input_data : pd.DataFrame,
     
     # --- Select columns to return based on verbose argument ---
     if not verbose:
-        out = df[[config_dict['site_col'],config_dict['timestamp_col'],'z_score_mod','event_type']]
+        out = df[[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],'z_score_mod','event_type']]
     else:
-        out = df[[config_dict['site_col'],config_dict['timestamp_col'],'z_score_mod','event_type','hour','median','days_captured']].rename(columns={"median":"median_at_hour"})
+        out = df[[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],'z_score_mod','event_type','hour','median','days_captured']].rename(columns={"median":"median_at_hour"})
     
     return(out)
