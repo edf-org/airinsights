@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel.force-include]
+"config" = "airinsights/config"
+
+[project]
+name = "airinsights"
+version = "2026.04.27.a" # Year.Month.Day-Alpha 
+authors = [
+  { name = "Environmental Defense Fund", email = "edfair@edf.org"},
+]
+maintainers = [
+  {name = "Alex Adame"},
+  {name = "Gabriella Brinkley"},
+  {name = "Lauren Padilla"},
+  {name = "Dan Peters"},
+]
+description = "Methods for analyzing air quality data"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE.txt"]
+requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Atmospheric Science",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "numpy>=2.1.0",
+    "pandas>=3.0.0",
+    "polars>=1.39.0",
+    "pyyaml>=6.0.3",
+    "pyarrow>=23.0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/edf-org/airinsights"
