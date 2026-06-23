@@ -153,17 +153,61 @@ def read_aqdata_file(
     # --- Take the file extension to determine which pandas function to use
     file_ext = Path(data_path).suffix.lower()
     if file_ext == '.csv':
-        df = pd.read_csv(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['datetime_format']) 
+        df = pd.read_csv(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['timestamp_format']) 
     elif file_ext in ('.xls', '.xlsx', '.xlsm'):
-        df = pd.read_excel(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['datetime_format'])
+        df = pd.read_excel(input_file, parse_dates=[config_dict['timestamp_col']], date_format=config_dict['timestamp_format'])
     elif file_ext == '.json':
         df = pd.read_json(input_file)
-        df[config_dict['timestamp_col']] = pd.to_datetime(df[config_dict['timestamp_col']], format=config_dict['datetime_format'])
+        df[config_dict['timestamp_col']] = pd.to_datetime(df[config_dict['timestamp_col']], format=config_dict['timestamp_format'])
     else:
         raise ValueError(f"Unsupported file format: {file_ext}. Supported file formats are csv, json, and excel files (xsl, xlsx, xlsm)")
     
+    # --- If tz specified in config, localize
+    if tz := config_dict.get('timestamp_tz'):
+        df[config_dict['timestamp_col']] = df[config_dict['timestamp_col']].dt.tz_localize(tz)
+    
     # --- If data is wide format, pivot to long using specified columns
     if config_dict['wide_format']: 
-        df = df.melt(value_vars=list(config_dict['pollutants'].values()),var_name=config_dict['pollutant_col'], value_name=config_dict['value_col'])
+        value_vars = [v['name'] for v in config_dict['pollutants'].values()]
+        df = df.melt(id_vars=[c for c in df.columns if c not in value_vars],
+                     value_vars = value_vars,
+                     var_name=config_dict['pollutant_col'],
+                     value_name=config_dict['value_col'])
 
     return df, config_dict
+
+# --- Infer frequency of measurements---
+def infer_temporal_freq(t):
+    return pd.Timedelta(pd.tseries.frequencies.to_offset(t.sort_values().diff().mode().iloc[0]))
+
+# --- Check time resolution and average to hourly or throw error ---
+def make_hourly(df,config_dict):
+    df = df.copy()
+    freqs = df.groupby([config_dict['site_col'],config_dict['pollutant_col']])[config_dict['timestamp_col']].apply(infer_temporal_freq)
+
+    # exclude data that is less frequent than hourly
+    too_infrequent = freqs[freqs > pd.Timedelta(hours=1)]
+    if not too_infrequent.empty:
+        df = df[~df.set_index([config_dict['site_col'],config_dict['pollutant_col']]).index.isin(too_infrequent.index)]
+        print(f"Excluded data from {len(too_infrequent)} loc/param combinations with time resolution less frequent than hourly")
+
+    # error if all data was less frequent than hourly
+    if df.empty:
+        raise ValueError("All data were excluded as too infrequent (interval > 1h) for this method")
+
+    # average data that is more frequent than hourly
+    sub_hourly = freqs[freqs < pd.Timedelta(hours=1)]
+    if not sub_hourly.empty:
+        value_col = config_dict['value_col']
+        group_cols = [c for c in df.columns if c not in [value_col, config_dict['timestamp_col']]]
+        df = (
+            df.set_index(config_dict['timestamp_col'])
+            .groupby(group_cols)
+            .resample('h')[value_col]
+            .mean()
+            .dropna()
+            .reset_index()
+            )
+        print(f"Resampled {len(sub_hourly)} loc/param combinations to hourly mean")
+    
+    return(df)
