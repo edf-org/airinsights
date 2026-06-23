@@ -112,7 +112,11 @@ def pollution_event(input_data : pd.DataFrame,
             median = pl.col('value_log').median(),
             MAD = (pl.col('value_log') - pl.col('value_log').median()).abs().median(),
             days_captured = pl.len()
-        ).filter(pl.col("days_captured") >= min_days_in_window).to_pandas()) # make minimum size a function of the window period (75%)
+        ).to_pandas()) 
+
+    # filter out values with insufficient window size
+    window_mask = MAD["days_captured"] < min_days_in_window
+    MAD.loc[window_mask, ["median", "MAD"]] = np.nan
 
     # --- Join back to other columns ---
     # --- Compute z-scores (z-score mod for MAD using scalar) and classify event (if >= 3 it is 'extreme', if >= 2 it is 'unusual') ---
@@ -121,7 +125,7 @@ def pollution_event(input_data : pd.DataFrame,
     df["z_score_mod"] = np.where(df["MAD"] > 0, # don't calculate if MAD is zero
                                  (df["value_log"] - df["median"]) / (1.4826 * df["MAD"]),
                                  np.nan)
-    df["event_type"] = np.select([df["days_captured"].isna(), df["z_score_mod"] >= 3, df["z_score_mod"] >= 2],
+    df["event_type"] = np.select([df["z_score_mod"].isna(), df["z_score_mod"] >= 3, df["z_score_mod"] >= 2],
               ["Insufficient number of days captured", "Extremely high", "Unusually high"], None)
 
     # --- Transform median back to concentration space ---
