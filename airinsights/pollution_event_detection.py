@@ -34,7 +34,7 @@ def pollution_event(input_data : pd.DataFrame,
     Returns
     -------
     pd.DataFrame
-        A pandas DataFrame containing the site and timestamp columns from the input data with the following columns appended:
+        A pandas DataFrame containing the site, timestamp, and pollutant columns from the input data with the following columns appended:
                 
             **z_score_mod**: modified Z-score of the sensor measurement
             
