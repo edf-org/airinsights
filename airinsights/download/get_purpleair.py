@@ -3,8 +3,13 @@ import time
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 
-def get_purpleair(config_dict,last_seen):
-    
+def get_purpleair(config_dict,existing):
+
+    if existing is None or existing.empty:
+        last_seen = {}
+    else:
+        last_seen = existing.groupby('sensor_index')[config_dict['timestamp_col']].max().to_dict()
+
     # get params from config
     group_number = config_dict['group_number']
     api_key = config_dict['api_key']

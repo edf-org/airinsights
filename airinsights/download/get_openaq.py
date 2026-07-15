@@ -12,8 +12,13 @@ import gzip
 from concurrent.futures import ThreadPoolExecutor
 import time
 
-def get_openaq(config_dict,last_seen):
+def get_openaq(config_dict,existing):
     
+    if existing is None or existing.empty:
+        last_seen = {}
+    else:
+        last_seen = existing.groupby(['location_id', config_dict['pollutant_col']])[config_dict['timestamp_col']].max().to_dict()
+        
     # get params from config
     bbox = tuple(config_dict['bounding_box'])
     api_key = config_dict['openaq_api_key']
@@ -69,6 +74,7 @@ def get_openaq(config_dict,last_seen):
             tables = [t for t in ex.map(fetch, files) if t is not None and t.num_rows > 0]
         
         df_hist = pa.concat_tables([t.select([t.schema.names.index(c) for c in cols]) for t in tables]).to_pandas()
+        df_hist['datetime'] = pd.to_datetime(df_hist['datetime'], utc=True) # this is in utc
         print(f"Historical: {len(df_hist)} rows downloaded")
     else:
         df_hist = pd.DataFrame()
@@ -78,18 +84,19 @@ def get_openaq(config_dict,last_seen):
     # get last seen either from existing data or from newly downloaded historical
     # don't look more than 7 days back for cost
     if not last_seen:
-        last_seen = df_hist.groupby('sensors_id')[config_dict['timestamp_col']].max().reset_index()
-        last_seen = dict(zip(last_seen['sensors_id'], last_seen[config_dict['timestamp_col']]))
+        last_seen = df_hist.groupby(['location_id', 'parameter'])[config_dict['timestamp_col']].max().to_dict()
 
     now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
     results = []
     for loc, sensor in sensors:
-        end_date = last_seen.get(sensor.id) or week_ago
+        key = (loc.id, sensor.parameter.name)
+        end_date = last_seen.get(key) or week_ago
+    
         measurements = client.measurements.list(
             sensors_id=sensor.id,
             data='measurements',
-            datetime_from=end_date.strftime('%Y-%m-%dT%H:%M:%SZ'), #don't look further than 7 days back
+            datetime_from=(end_date + timedelta(seconds=1)).strftime('%Y-%m-%dT%H:%M:%SZ'), #don't look further than 7 days back
             datetime_to=now.strftime('%Y-%m-%dT%H:%M:%SZ'),
             limit=1000,
         )
