@@ -161,6 +161,6 @@ def classify_pollution_events(input_data: pd.DataFrame,
     df = pd.concat(df_list_all, ignore_index=True)
 
     # --- select columns to return ---
-    df = df[[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],'network_median_value','network_median_z','network_typical_value','event_ID']]
+    df = df[[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],'local_z','network_median_value','network_median_z','network_typical_value','event_ID']]
 
     return(summary, df)
