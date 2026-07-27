@@ -2,6 +2,7 @@ import yaml
 from pathlib import Path
 import pandas as pd
 import importlib.resources
+from google.cloud import bigquery
 
 def build_config(
     timestamp_col: str,
@@ -48,6 +49,8 @@ def build_config(
     -------
         config_dict: configuration dictionary
     """
+    
+    # TODO - either update this for beta release or remove entirely
     
     file_ext = Path(config_file_path).suffix.lower()
     if not file_ext == ".yaml":
@@ -162,19 +165,61 @@ def read_aqdata_file(
     else:
         raise ValueError(f"Unsupported file format: {file_ext}. Supported file formats are csv, json, and excel files (xsl, xlsx, xlsm)")
     
-    # --- If tz specified in config, localize
-    if tz := config_dict.get('timestamp_tz'):
-        df[config_dict['timestamp_col']] = df[config_dict['timestamp_col']].dt.tz_localize(tz)
+    df = melt_long(df,config_dict)
+    df = localize_tz(df)
     
-    # --- If data is wide format, pivot to long using specified columns
-    if config_dict['wide_format']: 
-        value_vars = [v['name'] for v in config_dict['pollutants'].values()]
-        df = df.melt(id_vars=[c for c in df.columns if c not in value_vars],
-                     value_vars = value_vars,
-                     var_name=config_dict['pollutant_col'],
-                     value_name=config_dict['value_col'])
+    return df, config_dict
+
+def read_aqdata_bq(
+    input_table:str,
+    config : str | Path | None = None
+) -> tuple[pd.DataFrame, dict]:
+    """Reads an AQ data table from BigQuery to a pandas DataFrame, then formats the DataFrame using inputs from a YAML configuration file"""
+    
+    # TODO - should we take out default config? it is getting too complex to be realistic
+    
+    # --- Load a default configuration if not specified in the function call
+    if config is None:
+        print('No configuration file specified. Using the default.')
+        with importlib.resources.path("airinsights", 'config/100x100_config.yaml') as default_config:
+            config_path = default_config
+    else:
+        config_path = Path(config)
+
+    config_dict = load_config(config_path)
+
+    client = bigquery.Client()
+    df = client.list_rows(input_table).to_dataframe()
+
+    # --- Shared with read_aqdata_file
+    df = melt_long(df, config_dict)
+    df = localize_tz(df, config_dict)
 
     return df, config_dict
+
+def melt_long(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
+    """If data is wide format, pivot to long using specified columns"""
+    if not config_dict['wide_format']:
+        return df
+
+    value_vars = [v['name'] for v in config_dict['pollutants'].values()]
+    return df.melt(id_vars=[c for c in df.columns if c not in value_vars],
+                    value_vars = value_vars,
+                    var_name=config_dict['pollutant_col'],
+                    value_name=config_dict['value_col'])
+
+def localize_tz(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
+    """ If tz specified in config, localize the column"""
+    # TODO this could be made automatic based on lat/lon of data
+
+    ts_col = df[config_dict['timestamp_col']]
+
+    if not isinstance(ts_col.dtype, pd.DatetimeTZDtype): # if there is no timezone in pandas, assign the correct one from config
+        ts_col = ts_col.dt.tz_localize(config_dict['timestamp_tz'])
+    
+    df[config_dict['timestamp_col']] = ts_col.dt.tz_convert(config_dict['local_tz']) # then convert to local_tz
+
+    return df
 
 # --- Infer frequency of measurements---
 def infer_temporal_freq(t):
