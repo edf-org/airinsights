@@ -1,3 +1,4 @@
 .venv
 *.pyc
 settings.json
+examples/edf_cloud_run/config/*.yaml
