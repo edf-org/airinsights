@@ -6,6 +6,7 @@
 import pandas as pd
 from sklearn.cluster import DBSCAN
 import geopandas as gpd
+import warnings
 
 def classify_pollution_events(input_data: pd.DataFrame, 
                               config_dict: dict,
@@ -19,11 +20,7 @@ def classify_pollution_events(input_data: pd.DataFrame,
     when the network median z-score (global Z) exceeds the defined Z threshold (default is 2). 'Local' events are identified when 
     the difference between the local (site) Z and the global Z exceeds the defined Z threshold. 
     
-    DBSCAN clustering is used to aggregate contiguous (or nearly contiguous) flagged measurements into a smaller set of discrete events.
-    * For 'Regional' events, 1-dimensional DBSCAN with eps=24 groups together any regional events within +/- 24 hours of each other.
-    The longer timescale ensures that longer-term regional events such as pollution buildups caused by atmospheric events like a
-    temperature inversion would be grouped together even with some timegaps between peaks.
-    * For 'Local' events, 3-dimensional DBSCAN is tuned with a defined spatial eps (default: 5 km) and a temporal eps of 4 hours.  
+    For 'Local' events, 3-dimensional DBSCAN is tuned with a defined spatial eps (default: 5 km) and a temporal eps of 4 hours.  
     This groups events close enough in space and time that they could be associated with the same local emissions event. 
     
     This function relies on network statistics to differentiate local and regional events. We apply the following logic:
@@ -76,11 +73,11 @@ def classify_pollution_events(input_data: pd.DataFrame,
         summary_list = []
         
         if median_sites >= 3:
-            print(f"Median of {median_sites} sites per timestamp with data, continuing script")
+            print(f"Median of {median_sites} sites per timestamp with data for pollutant {pollutant}, continuing with regional vs. local classification")
             regional = True
             
             if any(df['sites_per_hour'] < 3):
-                print("Some timestamps have less than 3 site measurements and will be skipped in classification")
+                print("Some timestamps have less than 3 site measurements and will be skipped")
 
             df = df[df['sites_per_hour'] >=3]
             
@@ -93,11 +90,11 @@ def classify_pollution_events(input_data: pd.DataFrame,
             # --- Flag regional events as hours where network median z exceeded threshold
             regional = df[df['network_median_z'] >= z_thresh].copy()
         
-            # --- cluster these events to smooth out small timegaps
-            # --- 24 hour eps (max time gap allowed)
-            db_regional = DBSCAN(eps=24, min_samples=1,metric='euclidean').fit(regional[['hours']]) 
-            regional['event_ID'] = f'REG_{pollutant}_' + db_regional.labels_.astype(str) # assign ID for each unique event
-            
+            # --- group these events to smooth out small timegaps
+            regional = regional.sort_values('hours')
+            regional_clusters = (regional['hours'].diff().fillna(0) > 24).cumsum() # differentiate unique regional events if more than 24 hours apart
+            regional['event_ID'] = f'REG_{pollutant}_' + regional_clusters.astype(str)
+
             # --- create summary table from regional events
             regional_event_stats = regional.groupby('event_ID').agg(
                 start_time = (config_dict['timestamp_col'],'min'),
@@ -117,14 +114,27 @@ def classify_pollution_events(input_data: pd.DataFrame,
             
             # if too few sites, local Z is not adjusted for network median
             df['local_z'] = df['z_score_mod']
-            
+        
+        # check that there are at least some sites within the local_radius
+        sites = df.drop_duplicates(subset = [config_dict['lon_col'],config_dict['lat_col']])
+        gdf = gpd.GeoDataFrame(sites,geometry=gpd.points_from_xy(sites[config_dict['lon_col']], sites[config_dict['lat_col']]),crs="EPSG:4326")
+        gdf = gdf.to_crs(gdf.estimate_utm_crs()) # localize
+        nearest_idx, nearest_m = gdf.sindex.nearest(gdf.geometry, exclusive=True, return_all=False, return_distance=True)
+        gdf['nearest_km'] = nearest_m / 1000
+        within_local_distance = (gdf['nearest_km'] < local_distance_km).any()
+        print(within_local_distance)
+        print(gdf['nearest_km'])
+        
+        if not within_local_distance:
+            warnings.warn(f"No sites in network are within defined local distance of {local_distance_km} km. No clusters will be identified",UserWarning)
+                
         # --- Now, isolate local events and group them in space and time ---
         # --- Select events where the site local_z (adjusted by network median) exceeded the z threshold ---
         local = df[df['local_z'] >= z_thresh].sort_values(by=config_dict['timestamp_col'], ascending=True).copy()
             
         # --- cluster these events to identify spatiotemporal patterns    
         # --- Project data for more accurate and interpretable distances
-        local_gdf = gpd.GeoDataFrame(local, geometry=gpd.points_from_xy(local[config_dict['lon_col']], local[config_dict['lat_col']]),crs="EPSG:4326").to_crs(epsg=6933)
+        local_gdf = gpd.GeoDataFrame(local, geometry=gpd.points_from_xy(local[config_dict['lon_col']], local[config_dict['lat_col']]),crs="EPSG:4326").to_crs(gdf.estimate_utm_crs())
         local['x_km'] = local_gdf.geometry.x / 1000 # to km
         local['y_km'] = local_gdf.geometry.y / 1000
         eps_hours_local = 4 # 4 hour eps
