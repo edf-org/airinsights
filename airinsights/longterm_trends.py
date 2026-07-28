@@ -10,12 +10,12 @@ def mean_threshold(x,freq_hours,threshold=0.75):
     return x.mean() if (actual / expected) >= threshold else np.nan
 
 def site_trends(input_data,config_dict):
-    """Calculates historical AQ trends by site - are pollution levels increasing or decreasing over multiple years?
+    """Calculates historical AQ trends by site and pollutant - are pollution levels increasing or decreasing over multiple years?
         
         This function takes disaggregated AQ measurements, takes monthly averages, and uses statistical tests to determine the 
         direction and significance of the trend. Theil-sen and mann-kendall tests are used to determine the magnitude (slope) and 
         significance of the trend. To account for seasonality, a seasonal test is applied where each month is compared to the same 
-        month in past years.   
+        month in past years.
         
         Parameters
         ----------
@@ -27,83 +27,104 @@ def site_trends(input_data,config_dict):
         Returns
         -------
         overall_trend : pd.DataFrame
-            A pandas DataFrame containing trend results by site for the whole duration of the data
+            A pandas DataFrame containing trend results by site and pollutant for the whole duration of the data
         monthly_trend: pd.DataFrame
-            A pandas DataFrame containing trend results broken out by month of year
+            A pandas DataFrame containing trend results by site and pollutant, broken out by month of year
         """
     # TODO - reduce redunancy with data audit by moving data capture filters outside
-    # TODO - expand for multiple pollutants
     
-    # infer frequency of meas
-    freq_hours = pd.Series(input_data[config_dict['timestamp_col']]).diff().dt.total_seconds().median() / 3600
+    overall = []
+    monthly = []
 
-    # calculate monthly means with 75% threshold for valid hours
-    df_monthly = (input_data
-                  .set_index(config_dict['timestamp_col'])
-                  .groupby(config_dict['site_col'])[config_dict["value_col"]]
-                  .resample("MS")
-                  .apply(lambda x: mean_threshold(x, freq_hours))
-                  .reset_index(level = config_dict['site_col']))
+    for pollutant, pollutant_data in input_data.groupby(config_dict['pollutant_col']):
 
-    # count years and valid months by site, require 9 months
-    df_monthly['month'] = df_monthly.index.month
-    df_monthly['year'] = df_monthly.index.year
-    months_per_year = df_monthly.groupby([config_dict['site_col'],'year'])[config_dict['value_col']].transform('count') # count months by year
-    df_monthly[config_dict['value_col']] = df_monthly[config_dict['value_col']].where(months_per_year >= 9) # filter to require 9 months in year
+        # infer frequency of meas
+        freq_hours = (pollutant_data
+                      .sort_values([config_dict['site_col'], config_dict['timestamp_col']])
+                      .groupby(config_dict['site_col'])[config_dict['timestamp_col']]
+                      .diff().dt.total_seconds().median() / 3600)
 
-    # stop and check whether ANY sites have at least 3 years with 9+ months
-    valid_data = df_monthly.dropna(subset=[config_dict['value_col']]).groupby(config_dict['site_col'])['year'].nunique()
-    if valid_data.empty:
-        raise ValueError("Dataframe contains no sites with >=3 years with >=9 months at 75% data capture for trend analysis.")
-    
-    # run seasonal MK/theil-sen
-    results = []
-    for site, data in df_monthly.groupby(config_dict['site_col']):
-        try:
-            valid_years = data.dropna(subset=[config_dict['value_col']]).drop_duplicates(subset = [config_dict['site_col'],'year'])
-            valid_months = data.dropna(subset=[config_dict['value_col']]).drop_duplicates(subset = [config_dict['site_col'],'year','month'])
-            
-            if len(valid_years) >= 3:
-                res = mk.seasonal_test(data[config_dict['value_col']], period=12)
-                results.append({
-                    config_dict['site_col']: site,
-                    'trend': res.trend,
-                    'slope': res.slope,
-                    'p_value': res.p,
-                    'n_years': len(valid_years),
-                    'n_months': len(valid_months),
-                    'start_year' : df_monthly['year'].min(),
-                    'end_year' : df_monthly['year'].max()
-                })
-            else:
-                print(f"Skipping {site}: less than 3 valid years")
-        except Exception as e:
-            print(f"Skipping {site}: {e}")
+        # calculate monthly means with 75% threshold for valid hours
+        df_monthly = (pollutant_data
+                      .set_index(config_dict['timestamp_col'])
+                      .groupby(config_dict['site_col'])[config_dict["value_col"]]
+                      .resample("MS")
+                      .apply(lambda x: mean_threshold(x, freq_hours))
+                      .reset_index(level = config_dict['site_col']))
+
+        # count years and valid months by site, require 9 months
+        df_monthly['month'] = df_monthly.index.month
+        df_monthly['year'] = df_monthly.index.year
+        months_per_year = df_monthly.groupby([config_dict['site_col'],'year'])[config_dict['value_col']].transform('count') # count months by year
+        df_monthly[config_dict['value_col']] = df_monthly[config_dict['value_col']].where(months_per_year >= 9) # filter to require 9 months in year
+
+        # stop and check whether ANY sites have at least 3 years with 9+ months
+        valid_data = df_monthly.dropna(subset=[config_dict['value_col']]).groupby(config_dict['site_col'])['year'].nunique()
+        if valid_data.empty:
+            print(f"Skipping {pollutant}: no sites with >=3 years with >=9 months at 75% data capture for trend analysis.")
             continue
 
-    results_agg = pd.DataFrame(results)
-
-    # run disagg (on each month) MK/theil-sen
-    monthly_results = []
-    for (site, month), data in df_monthly.groupby([config_dict['site_col'],'month']):
-        if data[config_dict['value_col']].count() >= 3: # needs at least 3 for trend
+        # run seasonal MK/theil-sen
+        results = []
+        for site, data in df_monthly.groupby(config_dict['site_col']):
             try:
-                res = mk.original_test(data[config_dict['value_col']])
-                monthly_results.append({
-                    config_dict['site_col']: site,
-                    'month': month,
-                    'trend': res.trend,
-                    'slope': res.slope,
-                    'p_value': res.p}) 
+                valid_years = data.dropna(subset=[config_dict['value_col']]).drop_duplicates(subset = [config_dict['site_col'],'year'])
+                valid_months = data.dropna(subset=[config_dict['value_col']]).drop_duplicates(subset = [config_dict['site_col'],'year','month'])
+
+                if len(valid_years) >= 3:
+                    res = mk.seasonal_test(data[config_dict['value_col']], period=12)
+                    results.append({
+                        config_dict['pollutant_col']: pollutant,
+                        config_dict['site_col']: site,
+                        'trend': res.trend,
+                        'slope': res.slope,
+                        'p_value': res.p,
+                        'n_years': len(valid_years),
+                        'n_months': len(valid_months),
+                        'start_year' : valid_years['year'].min(),
+                        'end_year' : valid_years['year'].max()
+                    })
+                else:
+                    print(f"Skipping {site} for {pollutant}: less than 3 valid years")
             except Exception as e:
-                print(f"Skipping {site} at {month}: {e}")
+                print(f"Skipping {site} for {pollutant}: {e}")
                 continue
 
-    results_disagg = pd.DataFrame(monthly_results)
-    
+        results_agg = pd.DataFrame(results)
+
+        # run disagg (on each month) MK/theil-sen
+        monthly_results = []
+        for (site, month), data in df_monthly.groupby([config_dict['site_col'],'month']):
+            if data[config_dict['value_col']].count() >= 3: # needs at least 3 for trend
+                try:
+                    res = mk.original_test(data[config_dict['value_col']])
+                    monthly_results.append({
+                        config_dict['pollutant_col']: pollutant,
+                        config_dict['site_col']: site,
+                        'month': month,
+                        'trend': res.trend,
+                        'slope': res.slope,
+                        'p_value': res.p}) 
+                except Exception as e:
+                    print(f"Skipping {site} at {month} for {pollutant}: {e}")
+                    continue
+
+        results_disagg = pd.DataFrame(monthly_results)
+
+        if not results_agg.empty:
+            overall.append(results_agg)
+        if not results_disagg.empty:
+            monthly.append(results_disagg)
+
+    if not overall:
+        raise ValueError("Dataframe contains no sites with >=3 years with >=9 months at 75% data capture for trend analysis.")
+
+    results_agg = pd.concat(overall, ignore_index=True)
+    results_disagg = pd.concat(monthly, ignore_index=True) if monthly else pd.DataFrame()
+
     # add back to original metadata
     metadata = input_data[[config_dict['site_col'], config_dict['lat_col'], config_dict['lon_col']]].drop_duplicates()
     overall_trend = results_agg.merge(metadata,on = config_dict['site_col'])
-    monthly_trend = results_disagg.merge(metadata,on = config_dict['site_col'])
+    monthly_trend = results_disagg.merge(metadata,on = config_dict['site_col']) if not results_disagg.empty else results_disagg
 
     return overall_trend, monthly_trend
