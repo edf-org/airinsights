@@ -8,7 +8,7 @@ import rioxarray
 from shapely.geometry import shape
 from shapely.ops import unary_union
 
-def batch_airtracker(input_data:pd.DataFrame,config_dict:dict,max_workers: int = 16):
+def get_airtracker(input_data:pd.DataFrame,config_dict:dict,max_workers: int = 16):
     """ Get airtracker in parallel, one per row of input_data with times and coordinates
     Returns geodataframe with geometry of airtracker footprint for each measurement (row)
     """
