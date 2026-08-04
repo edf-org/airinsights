@@ -209,7 +209,7 @@ def read_aqdata_file(
     df[config_dict['timestamp_col']] = pd.to_datetime(df[config_dict['timestamp_col']],format=config_dict['timestamp_format'])
     
     df = melt_long(df,config_dict)
-    df = localize_tz(df)
+    df = localize_tz(df,config_dict)
     
     return df, config_dict
 
