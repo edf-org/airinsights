@@ -101,6 +101,9 @@ def pollution_event(input_data : pd.DataFrame,
 
     #--- Compute diurnal (hourly) medians and MAD per monitor ---
     #--- Polar package used to optimize for speed over pandas .rolling.agg
+    # polars throwing bug with local tz's. convert to UTC and back later
+    tz = df[config_dict['timestamp_col']].dt.tz
+    df[config_dict['timestamp_col']] = df[config_dict['timestamp_col']].dt.tz_convert("UTC")
 
     MAD = (
         pl.from_pandas(df).sort(config_dict['timestamp_col'])
@@ -120,14 +123,14 @@ def pollution_event(input_data : pd.DataFrame,
 
     # --- Join back to other columns ---
     # --- Compute z-scores (z-score mod for MAD using scalar) and classify event (if >= 3 it is 'extreme', if >= 2 it is 'unusual') ---
-
     df = df.merge(MAD,on=[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],"hour"],how="left")
     df["z_score_mod"] = np.where(df["MAD"] > 0, # don't calculate if MAD is zero
                                  (df["value_log"] - df["median"]) / (1.4826 * df["MAD"]),
                                  np.nan)
     df["event_type"] = np.select([df["z_score_mod"].isna(), df["z_score_mod"] >= 3, df["z_score_mod"] >= 2],
               ["Insufficient number of days captured", "Extremely high", "Unusually high"], None)
-
+    df[config_dict['timestamp_col']] = df[config_dict['timestamp_col']].dt.tz_convert(tz)   # convert back to tz
+    
     # --- Transform median back to concentration space ---
     df["median"] = np.exp(df["median"])
     
