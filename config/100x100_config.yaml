@@ -11,6 +11,7 @@
 ### Required Inputs ###
 timestamp_col: Datetime
 timestamp_tz: "America/Los_Angeles"
+local_tz: "America/Los_Angeles"
 site_col: Site
 timestamp_format: "%m/%d/%Y %H:%M"
 lat_col: Latitude
