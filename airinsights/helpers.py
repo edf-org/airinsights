@@ -1,21 +1,40 @@
+from unicodedata import name
 import yaml
 from pathlib import Path
 import pandas as pd
 import importlib.resources
 from google.cloud import bigquery
 
+DEFAULT_UNITS = {
+    "BC": "ug/m3",
+    "PM1": "ug/m3",
+    "PM2.5": "ug/m3",
+    "PM10": "ug/m3",
+    "NO": "ppb",
+    "NO2": "ppb",
+    "NOx": "ppb",
+    "O3": "ppb",
+    "CO": "ppm",
+    "SO2": "ppb",
+}
 def build_config(
     timestamp_col: str,
+    timestamp_tz: str,
     site_col: str,
     value_col: str,
     config_file_path: str,
     lat_col: str,
     lon_col: str,
-    datetime_format: str = "%m/%d/%Y %H:%M",
+    wide_format: bool = True,
+    timestamp_format: str = "%m/%d/%Y %H:%M",
+    pollutant_col: str | None = None,
+    pollutants: dict[str, str] | None = None,    
     file_delimiter: str | None = None,
     output_file_path: str | None = None,
     confidence_col: str | None = None,
     confidence_threshold: int | float | None=None
+
+
 ) -> dict:
     """
     Builds a new yaml config file and returns the file path to load and analyze data with AirInsights.
@@ -24,6 +43,8 @@ def build_config(
     ----------
     timestamp_col : str 
         Name of the column containing date and time
+    timestamp_tz : str
+        Timezone of the timestamp column. For example: "America/Los_Angeles". For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     site_col : str
         Name of the column containing unique identifiers for the air sensors
     value_col : str 
@@ -32,8 +53,14 @@ def build_config(
         Name of the latitude column
     lon_col : str
         Name of the longitude column
-    datetime_format: str
+    wide_format : bool, optional
+        Optional. If True, the input data is in wide format and will be pivoted to long format using the pollutant columns specified in the pollutants dictionary. If False, the input data is already in long format and will not be pivoted.
+    timestamp_format: str
         Format of the timestamp column usign python datetime syntax. For example: 2026-01-01 09:27:11 -> %Y-%m-%d %H:%M:%S. For more info, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior
+    pollutants : dict, optional
+        Optional. Dictionary of pollutants to analyze. The keys are the pollutant names, and the values are the units for each pollutant.
+    pollutant_col : str | None, optional
+        Optional. Name of the column containing the pollutant names
     config_file_path : str
         If path ending .yaml provided to write config file.
     file_delimiter : str, optional
@@ -55,18 +82,32 @@ def build_config(
     file_ext = Path(config_file_path).suffix.lower()
     if not file_ext == ".yaml":
         raise ValueError("config file path must end in .yaml")
-    
+
+    yaml_pollutants = None
+    if pollutants is not None:
+        yaml_pollutants = {
+            pollutant: {
+                "name": column,
+                "units": DEFAULT_UNITS[pollutant],
+            }
+            for pollutant, column in pollutants.items()
+        }
+
     config_dict = {
         "timestamp_col": timestamp_col,
+        "timestamp_tz": timestamp_tz,
         "site_col": site_col,
         "value_col": value_col,
-        "datetime_format": datetime_format,
+        "timestamp_format": timestamp_format,
         "lat_col" : lat_col,
         "lon_col" : lon_col,
+        "wide_format": wide_format,
         "file_delimiter": file_delimiter,
         "output_file_path": output_file_path,
         "confidence_col": confidence_col,
         "confidence_threshold": confidence_threshold,
+        "pollutants": yaml_pollutants,
+        "pollutant_col": pollutant_col,
     }
     
     config_path = Path(config_file_path)
