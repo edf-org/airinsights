@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "airinsights"
-version = "2026.04.27.a" # Year.Month.Day-Alpha 
+version = "2026.08.10.b" # Year.Month.Day-Beta
 authors = [
   { name = "Environmental Defense Fund", email = "edfair@edf.org"},
 ]
@@ -32,11 +32,19 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
+    "boto>=1.43.0",
+    "geopandas>=1.1.4",
+    "google-cloud-bigquery>=3.40.0",
     "numpy>=2.1.0",
+    "openaq>=1.1.0",
     "pandas>=3.0.0",
     "polars>=1.39.0",
-    "pyyaml>=6.0.3",
     "pyarrow>=23.0.1",
+    "pymannkendall>=1.4.3",
+    "pyyaml>=6.0.3",
+    "rioxarray>=0.23.0",
+    "rasterio>=1.5.0",
+    "scikit-learn>=1.8.0"
 ]
 
 [project.urls]
