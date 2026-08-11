@@ -5,6 +5,9 @@ import pandas as pd
 import importlib.resources
 from google.cloud import bigquery
 
+# Need to accept multiple units for the same pollutant... Eventually for the data audit, conversiton
+# to standard units will be needed. For now, we will just use the default units for each pollutant.
+
 DEFAULT_UNITS = {
     "BC": "ug/m3",
     "PM1": "ug/m3",
@@ -20,6 +23,7 @@ DEFAULT_UNITS = {
 def build_config(
     timestamp_col: str,
     timestamp_tz: str,
+    local_tz : str,
     site_col: str,
     value_col: str,
     config_file_path: str,
@@ -45,6 +49,8 @@ def build_config(
         Name of the column containing date and time
     timestamp_tz : str
         Timezone of the timestamp column. For example: "America/Los_Angeles". For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    local_tz : str
+        Timezone to convert the timestamp column to. For example: "America/Los_Angeles". For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     site_col : str
         Name of the column containing unique identifiers for the air sensors
     value_col : str 
@@ -96,6 +102,7 @@ def build_config(
     config_dict = {
         "timestamp_col": timestamp_col,
         "timestamp_tz": timestamp_tz,
+        "local_tz": local_tz,
         "site_col": site_col,
         "value_col": value_col,
         "timestamp_format": timestamp_format,
@@ -150,6 +157,7 @@ def load_config(
         config_dict['timestamp_col']
         config_dict['timestamp_format']
         config_dict['timestamp_tz']
+        config_dict['local_tz']
         config_dict['pollutant_col']
         config_dict['pollutants']
         config_dict['site_col']
