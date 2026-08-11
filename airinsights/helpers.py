@@ -20,6 +20,18 @@ DEFAULT_UNITS = {
     "CO": "ppm",
     "SO2": "ppb",
 }
+# DEFAULT_UNITS = {
+#     "BC": "ug/m3",
+#     "PM1": "ug/m3",
+#     "PM2.5": "ug/m3",
+#     "PM10": "ug/m3",
+#     "NO": "ppb",
+#     "NO2": "ppb",
+#     "NOx": "ppb",
+#     "O3": "ppb",
+#     "CO": "ppm",
+#     "SO2": "ppb",
+# }
 def build_config(
     timestamp_col: str,
     timestamp_tz: str,
@@ -31,14 +43,14 @@ def build_config(
     lon_col: str,
     wide_format: bool = True,
     timestamp_format: str = "%m/%d/%Y %H:%M",
+    pollutants: dict[str,str] = {},
     pollutant_col: str | None = None,
-    pollutants: dict[str, str] | None = None,    
     file_delimiter: str | None = None,
     output_file_path: str | None = None,
     confidence_col: str | None = None,
     confidence_threshold: int | float | None=None
 
-
+    
 ) -> dict:
     """
     Builds a new yaml config file and returns the file path to load and analyze data with AirInsights.
@@ -63,8 +75,11 @@ def build_config(
         Optional. If True, the input data is in wide format and will be pivoted to long format using the pollutant columns specified in the pollutants dictionary. If False, the input data is already in long format and will not be pivoted.
     timestamp_format: str
         Format of the timestamp column usign python datetime syntax. For example: 2026-01-01 09:27:11 -> %Y-%m-%d %H:%M:%S. For more info, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior
-    pollutants : dict, optional
-        Optional. Dictionary of pollutants to analyze. The keys are the pollutant names, and the values are the units for each pollutant.
+    pollutants : dict
+        Required. Dictionary specifying the pollutant(s) to analyze. The keys must
+        be standard Airinsights pollutant names (e.g., "PM2.5", "NO2", "O3"),
+        and the values are the corresponding pollutant column names in the input
+        data. For example: {"PM2.5": "pm25_concentration", "NO2": "no2_ppb"}.
     pollutant_col : str | None, optional
         Optional. Name of the column containing the pollutant names
     config_file_path : str
@@ -89,15 +104,15 @@ def build_config(
     if not file_ext == ".yaml":
         raise ValueError("config file path must end in .yaml")
 
-    yaml_pollutants = None
-    if pollutants is not None:
-        yaml_pollutants = {
-            pollutant: {
-                "name": column,
-                "units": DEFAULT_UNITS[pollutant],
-            }
-            for pollutant, column in pollutants.items()
-        }
+    # yaml_pollutants = None
+    # if pollutants is not None:
+    #     yaml_pollutants = {
+    #         pollutant: {
+    #             "name": column,
+    #            # "units": DEFAULT_UNITS[pollutant],
+    #         }
+    #         for pollutant, column in pollutants.items()
+    #     }
 
     config_dict = {
         "timestamp_col": timestamp_col,
@@ -113,7 +128,7 @@ def build_config(
         "output_file_path": output_file_path,
         "confidence_col": confidence_col,
         "confidence_threshold": confidence_threshold,
-        "pollutants": yaml_pollutants,
+        "pollutants": pollutants,
         "pollutant_col": pollutant_col,
     }
     
@@ -158,6 +173,7 @@ def load_config(
         config_dict['timestamp_format']
         config_dict['timestamp_tz']
         config_dict['local_tz']
+        config_dict['wide_format'] 
         config_dict['pollutant_col']
         config_dict['pollutants']
         config_dict['site_col']
@@ -165,6 +181,19 @@ def load_config(
         config_dict['lon_col']
     except KeyError as missing_key:
         print(f"Error: {missing_key} is missing. Check the configuration file.")
+
+     # Check format-specific parameters
+    if not config_dict["wide_format"]:
+        pollutant_col = config_dict.get("pollutant_col")
+        value_col = config_dict.get("value_col")
+
+        if not pollutant_col or not value_col:
+            missing = "pollutant_col" if not pollutant_col else "value_col"
+
+            raise ValueError(
+                f"Data is in long format, but no {missing} is provided. "
+                "Check the configuration file."
+            )
 
     return config_dict
 
