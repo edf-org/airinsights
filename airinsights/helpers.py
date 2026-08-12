@@ -5,33 +5,20 @@ import pandas as pd
 import importlib.resources
 from google.cloud import bigquery
 
-# Need to accept multiple units for the same pollutant... Eventually for the data audit, conversiton
-# to standard units will be needed. For now, we will just use the default units for each pollutant.
 
-DEFAULT_UNITS = {
-    "BC": "ug/m3",
-    "PM1": "ug/m3",
-    "PM2.5": "ug/m3",
-    "PM10": "ug/m3",
-    "NO": "ppb",
-    "NO2": "ppb",
-    "NOx": "ppb",
-    "O3": "ppb",
-    "CO": "ppm",
-    "SO2": "ppb",
+STANDARD_POLLUTANTS = {
+    "BC",
+    "PM1",
+    "PM2.5",
+    "PM10",
+    "NO",
+    "NO2",
+    "NOx",
+    "O3",
+    "CO",
+    "SO2"
 }
-# DEFAULT_UNITS = {
-#     "BC": "ug/m3",
-#     "PM1": "ug/m3",
-#     "PM2.5": "ug/m3",
-#     "PM10": "ug/m3",
-#     "NO": "ppb",
-#     "NO2": "ppb",
-#     "NOx": "ppb",
-#     "O3": "ppb",
-#     "CO": "ppm",
-#     "SO2": "ppb",
-# }
+
 def build_config(
     timestamp_col: str,
     timestamp_tz: str,
