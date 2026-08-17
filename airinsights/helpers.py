@@ -91,15 +91,15 @@ def build_config(
     if not file_ext == ".yaml":
         raise ValueError("config file path must end in .yaml")
 
-    # yaml_pollutants = None
-    # if pollutants is not None:
-    #     yaml_pollutants = {
-    #         pollutant: {
-    #             "name": column,
-    #            # "units": DEFAULT_UNITS[pollutant],
-    #         }
-    #         for pollutant, column in pollutants.items()
-    #     }
+    yaml_pollutants = None
+    if pollutants is not None:
+        yaml_pollutants = {
+            pollutant: {
+                "name": column,
+               # "units": DEFAULT_UNITS[pollutant],
+            }
+            for pollutant, column in pollutants.items()
+        }
 
     config_dict = {
         "timestamp_col": timestamp_col,
@@ -115,7 +115,7 @@ def build_config(
         "output_file_path": output_file_path,
         "confidence_col": confidence_col,
         "confidence_threshold": confidence_threshold,
-        "pollutants": pollutants,
+        "pollutants": yaml_pollutants,
         "pollutant_col": pollutant_col,
     }
     
