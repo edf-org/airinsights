@@ -3,3 +3,4 @@
 settings.json
 examples/edf_cloud_run/config/*.yaml
 __pycache__
+.vscode/
