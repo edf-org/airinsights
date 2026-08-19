@@ -84,9 +84,7 @@ def build_config(
     -------
         config_dict: configuration dictionary
     """
-    
-    # TODO - either update this for beta release or remove entirely
-    
+        
     file_ext = Path(config_file_path).suffix.lower()
     if not file_ext == ".yaml":
         raise ValueError("config file path must end in .yaml")
@@ -218,9 +216,11 @@ def read_aqdata_file(
     # --- Load a configuration file to ensure correct formatting on read
     config_dict = load_config(config_path)
 
-    # --- Take the file extension to determine which pandas function to use
-    file_ext = Path(data_path).suffix.lower()
-    if file_ext == '.csv':
+    # --- Take the file extension to determine which pandas function to use    
+    suffixes = [s.lower() for s in Path(data_path).suffixes]
+    file_ext = "".join(suffixes)
+    
+    if file_ext in ('.csv', '.csv.gz'):
         df = pd.read_csv(input_file) 
     elif file_ext in ('.xls', '.xlsx', '.xlsm'):
         df = pd.read_excel(input_file)
