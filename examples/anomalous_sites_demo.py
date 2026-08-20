@@ -32,7 +32,7 @@ print(sites)
 
 # --- Get sites with unusual patterns compared to the network for the 30 day timeframe ---
 anomalous_sites_30d = (
-    sites.loc[sites.time_window == '30d']
+    sites.loc[sites.timeframe == '30d']
     .groupby('Site')
     .agg({'n_hours_elevated': 'first','times_elevated': 'first', 'site_mean': 'mean'})
 )
@@ -52,7 +52,7 @@ print(anomalous_sites_30d)
 # anomalous_sites_30d.to_csv('oakland_2017_100x100_blackcarbon_anomalous_sites_30d.csv')
 
 # --- Plot network median and site mean with anamolous hours highlighted ---
-sites_30d = sites.loc[sites.time_window == '30d']
+sites_30d = sites.loc[sites.timeframe == '30d']
 example_site = 8
 example_site_data = (
     (sites_30d[sites_30d.Site == example_site])[['hour', 'site_mean', 'network_median']]

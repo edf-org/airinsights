@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import warnings
 
 def get_hotspot_type(high_hours, time_bins):
     labels = [label for label, hours in time_bins.items() if high_hours.isin(hours).any()]
@@ -86,21 +87,47 @@ def anomalous_sites(
      
     # --- Add column for hour of day ---
     df["hour"] = df[config_dict['timestamp_col']].dt.hour
-
-    # --- TODO: Check for data completeness within each subset ---
-    # check that data doesn't start or end within range (+- 1-2 days)
-    # valid day = 75% of hours
-    # valid time range = 75% of days in time range
-    # Repeated gaps during same part of day : leave for future version
     
     # --- Subset data for multiple timeframes: 30 days, 90 days, 1 year and full dataset ---
     max_time = df[config_dict['timestamp_col']].max()
+    
+    # initialize dictionary with all data
     timeframes = {
-        "30d": df[df[config_dict['timestamp_col']] >= max_time - pd.Timedelta(days=30)],
-        "90d": df[df[config_dict['timestamp_col']] >= max_time - pd.Timedelta(days=90)],
-        "1y": df[df[config_dict['timestamp_col']] >= max_time - pd.DateOffset(years=1)],
         "all_time": df
     }
+    
+    timeframe_labels = ["30d", "90d", "1y"]
+    timeframe_date_lims = [(max_time - pd.Timedelta(days=30)), (max_time - pd.Timedelta(days=90)), (max_time - pd.DateOffset(years=1))]
+    
+    # Check for data completeness within each timeframe. 
+    # If data are sufficiently complete, add to the dictionary. Otherwise, issue a warning.
+    for label, date_lim in zip(timeframe_labels, timeframe_date_lims):
+        subset = df[df[config_dict['timestamp_col']] >= date_lim]
+        
+        # check that beginning of data is within 2 days of the beginning of the timeframe
+        if subset[config_dict['timestamp_col']].min() > (date_lim + pd.Timedelta(days = 2)):
+            warnings.warn(f"Timeframe {label} not included since data begins more than 2 days after timeframe start.")
+            continue
+        
+        # calculate number of valid days (i.e., those with at least 18 hours, or 75% of the day)
+        subset['date'] = subset[config_dict['timestamp_col']].dt.date
+        valid_days = (
+            subset.groupby('date')
+            .agg({'hour': 'nunique'})
+            .loc[lambda x: x['hour'] >= 18]
+        )
+        n_valid_days = len(valid_days)
+        
+        # calculate total number of days in the timeframe
+        n_days = (max_time - date_lim).days
+        
+        # check that valid days account for at least 75% of the number of days in the entire timeframe
+        if n_valid_days < 0.75*n_days:
+            warnings.warn(f"Timeframe {label} not included since data does not meet 75% completeness criteria")
+            continue
+        
+        timeframes[label] = subset
+    
     
     # --- Define hours corresponding to times of day ---
     time_bins = {
