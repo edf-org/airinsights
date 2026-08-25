@@ -2,12 +2,12 @@ from ..download.get_openaq import get_openaq
 from ..download.get_purpleair import get_purpleair
 from google.api_core.exceptions import NotFound
 import pandas as pd
-from google.cloud import bigquery
 
 def get_meas(config_dict,client):
     """Wrapper around data download scripts to download latest measurements for a specific data source"""
     # currently written for BQ only
-    
+    from google.cloud import bigquery
+
     # --- read existing ---
     try:
         existing = client.query(

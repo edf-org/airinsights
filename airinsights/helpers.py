@@ -1,10 +1,9 @@
-from unicodedata import name
 import yaml
 from pathlib import Path
 import pandas as pd
 import importlib.resources
-from google.cloud import bigquery
 
+# TODO - should we take out default config? the configs are location, timezone specific so likely won't be applicable to a random user.
 
 STANDARD_POLLUTANTS = {
     "BC",
@@ -243,8 +242,8 @@ def read_aqdata_bq(
 ) -> tuple[pd.DataFrame, dict]:
     """Reads an AQ data table from BigQuery to a pandas DataFrame, then formats the DataFrame using inputs from a YAML configuration file"""
     
-    # TODO - should we take out default config? it is getting too complex to be realistic
-    
+    from google.cloud import bigquery # only load when func runs
+
     # --- Load a default configuration if not specified in the function call
     if config is None:
         print('No configuration file specified. Using the default.')
