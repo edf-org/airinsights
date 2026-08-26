@@ -92,10 +92,9 @@ def build_config(
     if pollutants is not None:
         yaml_pollutants = {
             pollutant: {
-                "name": column,
-               # "units": DEFAULT_UNITS[pollutant],
+                "name": name,
             }
-            for pollutant, column in pollutants.items()
+            for pollutant, name in pollutants.items()
         }
 
     config_dict = {
@@ -158,13 +157,13 @@ def load_config(
         config_dict['timestamp_tz']
         config_dict['local_tz']
         config_dict['wide_format'] 
-        config_dict['pollutant_col']
         config_dict['pollutants']
         config_dict['site_col']
         config_dict['lat_col']
         config_dict['lon_col']
     except KeyError as missing_key:
         print(f"Error: {missing_key} is missing. Check the configuration file.")
+        raise
 
      # Check format-specific parameters
     if not config_dict["wide_format"]:
@@ -231,8 +230,9 @@ def read_aqdata_file(
     # --- Format date column using config. This will throw error if it fails
     df[config_dict['timestamp_col']] = pd.to_datetime(df[config_dict['timestamp_col']],format=config_dict['timestamp_format'])
     
-    df = melt_long(df,config_dict)
-    df = localize_tz(df,config_dict)
+    df = _melt_long(df,config_dict)
+    df = _localize_tz(df,config_dict)
+    df = _dedupe(df,config_dict)
     
     return df, config_dict
 
@@ -258,23 +258,38 @@ def read_aqdata_bq(
     df = client.list_rows(input_table).to_dataframe()
 
     # --- Shared with read_aqdata_file
-    df = melt_long(df, config_dict)
-    df = localize_tz(df, config_dict)
-
+    df = _melt_long(df, config_dict)
+    df = _localize_tz(df, config_dict)
+    df = _dedupe(df, config_dict)
+    
     return df, config_dict
 
-def melt_long(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
+def _melt_long(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
     """If data is wide format, pivot to long using specified columns"""
     if not config_dict['wide_format']:
         return df
+    
+    print("Melting data to long format")
+    
+    # get pollutant and value_col names for pivot, using default if not supplied in config
+    pollutant_col = config_dict.get('pollutant_col')
+    if not pollutant_col:
+        print("No pollutant_col in config; using default name 'pollutant'")
+        config_dict['pollutant_col'] = 'pollutant'
+
+    value_col = config_dict.get('value_col')
+    if not value_col:
+        print("No value_col in config; using default name 'value'")
+        config_dict['value_col'] = 'value'
 
     value_vars = [v['name'] for v in config_dict['pollutants'].values()]
+        
     return df.melt(id_vars=[c for c in df.columns if c not in value_vars],
                     value_vars = value_vars,
                     var_name=config_dict['pollutant_col'],
                     value_name=config_dict['value_col'])
 
-def localize_tz(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
+def _localize_tz(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
     """ If tz specified in config, localize the column"""
     # TODO this could be made automatic based on lat/lon of data
 
@@ -283,18 +298,39 @@ def localize_tz(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
     if not isinstance(ts_col.dtype, pd.DatetimeTZDtype): # if there is no timezone in pandas, assign the correct one from config
         ts_col = ts_col.dt.tz_localize(config_dict['timestamp_tz'])
     
-    df[config_dict['timestamp_col']] = ts_col.dt.tz_convert(config_dict['local_tz']) # then convert to local_tz
+    if str(ts_col.dt.tz) == config_dict['local_tz']:
+        print(f"Timestamp already in local timezone: {config_dict['local_tz']}")
+    else:
+        print(f"Converting timestamp to local timezone: {config_dict['local_tz']}")
+        ts_col = ts_col.dt.tz_convert(config_dict['local_tz']) # then convert to local_tz
+        
+    df[config_dict['timestamp_col']] = ts_col
 
     return df
 
-# --- Infer frequency of measurements---
-def infer_temporal_freq(t):
-    return pd.Timedelta(pd.tseries.frequencies.to_offset(t.sort_values().diff().mode().iloc[0]))
+def _dedupe(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
+    """Remove exact duplicate measurements (same site, timestamp, pollutant, and value)"""
+    original_length = len(df)
+    df = df.drop_duplicates(subset = [config_dict['site_col'],
+                                      config_dict['timestamp_col'],
+                                      config_dict['pollutant_col'],
+                                      config_dict['value_col']])
+    removed = original_length - len(df)
+    if removed:
+        print(f"Removed {removed} exact duplicate rows")
+    return df
 
-# --- Check time resolution and average to hourly or throw error ---
-def make_hourly(df,config_dict):
+def _infer_temporal_freq(t):
+    """Infer frequency of measurements"""
+    diffs = t.sort_values().diff().dropna()
+    diffs = diffs[diffs > pd.Timedelta(0)]  # drop zero diffs (duplicate timestamps)
+
+    return pd.Timedelta(pd.tseries.frequencies.to_offset(diffs.mode().iloc[0]))
+
+def _make_hourly(df,config_dict):
+    """Check time resolution of measurements and average to hourly or throw error"""
     df = df.copy()
-    freqs = df.groupby([config_dict['site_col'],config_dict['pollutant_col']])[config_dict['timestamp_col']].apply(infer_temporal_freq)
+    freqs = df.groupby([config_dict['site_col'],config_dict['pollutant_col']])[config_dict['timestamp_col']].apply(_infer_temporal_freq)
 
     # exclude data that is less frequent than hourly
     too_infrequent = freqs[freqs > pd.Timedelta(hours=1)]

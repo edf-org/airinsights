@@ -1,7 +1,7 @@
 import pandas as pd
 import pymannkendall as mk
 import numpy as np
-from airinsights.helpers import infer_temporal_freq
+from airinsights.helpers import _infer_temporal_freq
 
 def _mean_threshold(x,freq_hours,threshold=0.75):
     if x.empty or len(x) < 2:
@@ -11,7 +11,7 @@ def _mean_threshold(x,freq_hours,threshold=0.75):
     return x.mean() if (actual / expected) >= threshold else np.nan
 
 def _monthly_mean(site_data,config_dict):
-    freq_hours = infer_temporal_freq(site_data[config_dict['timestamp_col']]).total_seconds() / 3600
+    freq_hours = _infer_temporal_freq(site_data[config_dict['timestamp_col']]).total_seconds() / 3600
     result = (site_data.set_index(config_dict['timestamp_col'])[config_dict['value_col']]
               .resample("MS")
               .apply(lambda x: _mean_threshold(x, freq_hours))
