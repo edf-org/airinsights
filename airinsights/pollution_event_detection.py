@@ -6,11 +6,12 @@
 import pandas as pd
 import numpy as np
 import polars as pl
+from airinsights.helpers import _validate_hourly
 
 def pollution_event(input_data : pd.DataFrame,
                     config_dict : dict,
                     verbose : bool = False,
-                    window_size : int | None = None
+                    window_size : int = 60
                     ):
     """Identifies and flags anomalous events in a dataset
 
@@ -28,8 +29,8 @@ def pollution_event(input_data : pd.DataFrame,
         A dictionary containing input parameter names and values. See 'Other Parameters' for a list
     verbose : bool, default False
         Appends only the modified Z-score and event classification columns to the input data if False. Appends all columns used for computation if True. 
-    window_size : int or None, default 60
-        Number of days in the rolling window used for calculations. Defaults to 60. Has a minimum of 30 days and a maximum of 365 days.
+    window_size : int, default 60
+        Number of days in the rolling window used for calculations. Has a minimum of 30 days and a maximum of 365 days.
 
     Returns
     -------
@@ -75,13 +76,14 @@ def pollution_event(input_data : pd.DataFrame,
     # --- Read input data as df ---
     df = input_data.copy()
 
+    # --- Validate hourly time resolution ---
+    df = _validate_hourly(df, config_dict)
+
     # --- Parse window_size argument
-    if window_size is None:
-        window_size = 60
+    if not isinstance(window_size, (int, np.integer)):
+        raise TypeError(f"integer expected, got {type(window_size).__name__}")
     elif window_size < 30 or window_size > 365:
         raise ValueError("Window size must be between 30 and 365.")
-    elif not isinstance(window_size, int):
-        raise TypeError(f"integer expected, got {type(window_size).__name__}")
 
     min_days_in_window = round(window_size * 0.75)
 
