@@ -9,12 +9,41 @@ from shapely.geometry import shape
 from shapely.ops import unary_union
 
 def get_airtracker(input_data:pd.DataFrame,config_dict:dict,max_workers: int = 16):
-    """ Get airtracker in parallel, one per row of input_data with times and coordinates
-    Returns geodataframe with geometry of airtracker footprint for each measurement (row)
-    """
+    """Get airtracker footprint for each measurement in a dataset, in parallel
+
+    Calls airtracker_footprint once per row of input_data using each row's timestamp and coordinates.
+    Typically run on the disaggregated output of classify_pollution_events to identify likely upwind source areas for 
+    local pollution events.
     
+    Parameters
+    ----------
+    input_data : pd.DataFrame
+        A pandas DataFrame with one row per measurement, containing timestamp, latitude, longitude, site, and event_ID columns.
+    config_dict : dict
+        A dictionary containing input parameter names and values. See 'Other Parameters' for a list.
+    max_workers : int, default 16
+        Number of concurrent threads used to request footprints from the AirTracker API.
+
+    Returns
+    -------
+    gpd.GeoDataFrame or None
+        A GeoDataFrame with one row per successfully retrieved footprint, containing the footprint geometry (as both
+        a shapely geometry and a WKT string), timestamp, longitude, latitude, event_ID, and site columns.
+
+    Other Parameters
+    ----------------
+    timestamp_col : str
+        Name of the column containing date and time
+    lat_col : str
+        Name of the latitude column
+    lon_col : str
+        Name of the longitude column
+    site_col : str or int
+        Name of the column containing unique identifiers for the air sensors
+    """
+
     # for each row in pollution event df, get a footprint
-    def run_once(row):
+    def _run_once(row):
         gdf = airtracker_footprint(
             time=getattr(row, config_dict['timestamp_col']),
             lon=getattr(row, config_dict['lon_col']),
@@ -27,7 +56,7 @@ def get_airtracker(input_data:pd.DataFrame,config_dict:dict,max_workers: int = 1
 
     results = [] 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(run_once, row) for row in input_data.itertuples()]
+        futures = [executor.submit(_run_once, row) for row in input_data.itertuples()]
         for f in concurrent.futures.as_completed(futures):
             try:
                 results.append(f.result())
