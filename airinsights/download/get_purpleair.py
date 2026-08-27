@@ -4,14 +4,16 @@ from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import os
  
 # session that retries with backoff after errors
 session = requests.Session()
 session.mount("https://", HTTPAdapter(pool_maxsize=10,max_retries=Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])))
 
 def get_purpleair(config_dict,existing):
-    """ Retrieves historical and recent purpleair data for a sensor 'group' defined in the config. Uses ALT CF=3.4 calibration factor for PM2.5. """
-    
+    """ Retrieves historical and recent purpleair data for a sensor 'group' defined in the config. Uses ALT CF=3.4 calibration factor for PM2.5.
+    Requires the PURPLEAIR_KEY environment variable. """
+
     if existing is None or existing.empty:
         last_seen = {}
     else:
@@ -19,7 +21,13 @@ def get_purpleair(config_dict,existing):
 
     # get params from config
     group_number = config_dict['group_number']
-    api_key = config_dict['api_key']
+
+    # get api key from environment
+    api_key = os.environ.get("PURPLEAIR_KEY")
+    if not api_key:
+        raise KeyError(
+            "Environment variable 'PURPLEAIR_KEY' not found. Please set it in your environment."
+        )
 
     # get locations and sensors
     url = f"https://api.purpleair.com/v1/groups/{group_number}/members"
