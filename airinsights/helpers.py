@@ -324,9 +324,10 @@ def _infer_temporal_freq(t):
     """Infer frequency of measurements"""
     diffs = t.sort_values().diff().dropna()
     diffs = diffs[diffs > pd.Timedelta(0)]  # drop zero diffs (duplicate timestamps)
-
     return pd.Timedelta(pd.tseries.frequencies.to_offset(diffs.mode().iloc[0]))
 
+# TODO - make this just for averaging now that we have _validate_hourly, and add thresholds
+# implement in trends function to reduce duplication
 def _make_hourly(df,config_dict):
     """Check time resolution of measurements and average to hourly or throw error"""
     df = df.copy()
@@ -356,5 +357,22 @@ def _make_hourly(df,config_dict):
             .reset_index()
             )
         print(f"Resampled {len(sub_hourly)} loc/param combinations to hourly mean")
-    
+
+    return(df)
+
+def _validate_hourly(df,config_dict):
+    """Check time resolution of measurements and exclude data that is not exactly hourly; error if no hourly data remains"""
+    df = df.copy()
+    freqs = df.groupby([config_dict['site_col'],config_dict['pollutant_col']])[config_dict['timestamp_col']].apply(_infer_temporal_freq)
+
+    # exclude site/pollutant combinations that are not exactly hourly
+    non_hourly = freqs[freqs != pd.Timedelta(hours=1)]
+    if not non_hourly.empty:
+        df = df[~df.set_index([config_dict['site_col'],config_dict['pollutant_col']]).index.isin(non_hourly.index)]
+        print(f"Excluded data from {len(non_hourly)} site/pollutant combinations with resolution other than hourly:\n{non_hourly}")
+
+    # error if all data was excluded
+    if df.empty:
+        raise ValueError("All data were excluded as non-hourly; this function requires hourly data.")
+
     return(df)
