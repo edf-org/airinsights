@@ -1,0 +1,18 @@
+airinsights @ https://github.com/edf-org/airinsights/archive/fecbf37dcf309f22b8dc49a5075ae6143baf1f94.tar.gz
+boto3
+geopandas
+isd_fetch
+numpy
+openaq
+pandas
+protobuf
+pyarrow
+pymannkendall
+rasterio
+requests
+scikit_learn
+google-cloud-bigquery
+db-dtypes
+google-cloud-bigquery-storage
+pandas-gbq
+pyyaml

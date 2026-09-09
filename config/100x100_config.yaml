@@ -10,11 +10,19 @@
 
 ### Required Inputs ###
 timestamp_col: Datetime
+timestamp_tz: "America/Los_Angeles"
+local_tz: "America/Los_Angeles"
 site_col: Site
-value_col: hourly_BC
-datetime_format: "%m/%d/%Y %H:%M"
+timestamp_format: "%m/%d/%Y %H:%M"
 lat_col: Latitude
 lon_col: Longitude
+wide_format: True
+pollutant_col: pollutant
+value_col: value
+pollutants:
+  BC:
+    name: "hourly_BC"
+    units: "ug/m3"
 
 ### Optional Parameters:
 #   file_delimiter (str):
