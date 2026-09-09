@@ -3,6 +3,7 @@ from airinsights.anomalous_sites import anomalous_sites
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# --- Single Pollutant (Black Carbon) example ---
 # --- Set path to data source ---
 input_data = "examples/sample_data/oakland_2017_100x100_blackcarbon.csv"
 
@@ -76,7 +77,6 @@ flagged_hours = (
         )
 )
 
-
 sns.set_theme(style="whitegrid")
 ax = sns.lineplot(data = example_site_data, palette = ['red', 'blue'], dashes = False)
 sns.scatterplot(
@@ -93,3 +93,20 @@ sns.move_legend(
 )
 ax.set_ylabel('BC (ug/m3)')
 plt.show()
+
+# --- Multi-Pollutant example ---
+
+df,config = air.read_aqdata_file("examples/sample_data/detroit_reference_openaq_2016to2026.csv.gz",
+                                 config = "config/detroit_openaq_config.yaml")
+
+# run on no2, pm2.5 and so2
+df = df[df['parameter'].isin(['no2','so2','pm25'])]
+
+# convert units to ppb for interpretation
+is_ppm = df["units"].str.lower() == "ppm"
+df["value"] = df["value"].where(~is_ppm, df["value"] * 1000)
+df["units"] = df["units"].where(~is_ppm, "ppb")
+
+sites = anomalous_sites(df,config)
+
+# TODO: finish this example
