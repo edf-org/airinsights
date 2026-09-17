@@ -11,7 +11,7 @@ input_data = "sample_data/oakland_2017_100x100_blackcarbon.csv"
 config_path = "../config/100x100_config.yaml"
 
 # Option 2: generate new config for your data
-#config_path = helpers.build_config(
+#config_path = air.build_config(
 #    timestamp_col = 'Datetime',
 #    site_col = 'Site',
 #    value_col = 'hourly_BC',

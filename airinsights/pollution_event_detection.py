@@ -6,11 +6,12 @@
 import pandas as pd
 import numpy as np
 import polars as pl
+from airinsights.helpers import _validate_hourly
 
 def pollution_event(input_data : pd.DataFrame,
                     config_dict : dict,
                     verbose : bool = False,
-                    window_size : int | None = None
+                    window_size : int = 60
                     ):
     """Identifies and flags anomalous events in a dataset
 
@@ -28,13 +29,13 @@ def pollution_event(input_data : pd.DataFrame,
         A dictionary containing input parameter names and values. See 'Other Parameters' for a list
     verbose : bool, default False
         Appends only the modified Z-score and event classification columns to the input data if False. Appends all columns used for computation if True. 
-    window_size : int or None, default 60
-        Number of days in the rolling window used for calculations. Defaults to 60. Has a minimum of 30 days and a maximum of 365 days.
+    window_size : int, default 60
+        Number of days in the rolling window used for calculations. Has a minimum of 30 days and a maximum of 365 days.
 
     Returns
     -------
     pd.DataFrame
-        A pandas DataFrame containing the site and timestamp columns from the input data with the following columns appended:
+        A pandas DataFrame containing the site, timestamp, and pollutant columns from the input data with the following columns appended:
                 
             **z_score_mod**: modified Z-score of the sensor measurement
             
@@ -75,13 +76,14 @@ def pollution_event(input_data : pd.DataFrame,
     # --- Read input data as df ---
     df = input_data.copy()
 
+    # --- Validate hourly time resolution ---
+    df = _validate_hourly(df, config_dict)
+
     # --- Parse window_size argument
-    if window_size is None:
-        window_size = 60
+    if not isinstance(window_size, (int, np.integer)):
+        raise TypeError(f"integer expected, got {type(window_size).__name__}")
     elif window_size < 30 or window_size > 365:
         raise ValueError("Window size must be between 30 and 365.")
-    elif not isinstance(window_size, int):
-        raise TypeError(f"integer expected, got {type(window_size).__name__}")
 
     min_days_in_window = round(window_size * 0.75)
 
@@ -101,34 +103,43 @@ def pollution_event(input_data : pd.DataFrame,
 
     #--- Compute diurnal (hourly) medians and MAD per monitor ---
     #--- Polar package used to optimize for speed over pandas .rolling.agg
+    # polars throwing bug with local tz's. convert to UTC and back later
+    tz = df[config_dict['timestamp_col']].dt.tz
+    df[config_dict['timestamp_col']] = df[config_dict['timestamp_col']].dt.tz_convert("UTC")
 
     MAD = (
         pl.from_pandas(df).sort(config_dict['timestamp_col'])
         .rolling( 
             index_column=config_dict['timestamp_col'],
             period=f"{window_size}d",
-            group_by=[config_dict['site_col'], "hour"]
+            group_by=[config_dict['site_col'],config_dict['pollutant_col'], "hour"]
         ).agg(
             median = pl.col('value_log').median(),
             MAD = (pl.col('value_log') - pl.col('value_log').median()).abs().median(),
             days_captured = pl.len()
-        ).filter(pl.col("days_captured") >= min_days_in_window).to_pandas()) # make minimum size a function of the window period (75%)
+        ).to_pandas()) 
+
+    # filter out values with insufficient window size
+    window_mask = MAD["days_captured"] < min_days_in_window
+    MAD.loc[window_mask, ["median", "MAD"]] = np.nan
 
     # --- Join back to other columns ---
     # --- Compute z-scores (z-score mod for MAD using scalar) and classify event (if >= 3 it is 'extreme', if >= 2 it is 'unusual') ---
-
-    df = df.merge(MAD,on=[config_dict['site_col'],config_dict['timestamp_col'],"hour"],how="left")
-    df["z_score_mod"] = (df["value_log"] - df["median"]) / (1.4826 * df["MAD"])
-    df["event_type"] = np.select([df["days_captured"].isna(), df["z_score_mod"] >= 3, df["z_score_mod"] >= 2],
+    df = df.merge(MAD,on=[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],"hour"],how="left")
+    df["z_score_mod"] = np.where(df["MAD"] > 0, # don't calculate if MAD is zero
+                                 (df["value_log"] - df["median"]) / (1.4826 * df["MAD"]),
+                                 np.nan)
+    df["event_type"] = np.select([df["z_score_mod"].isna(), df["z_score_mod"] >= 3, df["z_score_mod"] >= 2],
               ["Insufficient number of days captured", "Extremely high", "Unusually high"], None)
-
+    df[config_dict['timestamp_col']] = df[config_dict['timestamp_col']].dt.tz_convert(tz)   # convert back to tz
+    
     # --- Transform median back to concentration space ---
     df["median"] = np.exp(df["median"])
     
     # --- Select columns to return based on verbose argument ---
     if not verbose:
-        out = df[[config_dict['site_col'],config_dict['timestamp_col'],'z_score_mod','event_type']]
+        out = df[[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],'z_score_mod','event_type']]
     else:
-        out = df[[config_dict['site_col'],config_dict['timestamp_col'],'z_score_mod','event_type','hour','median','days_captured']].rename(columns={"median":"median_at_hour"})
+        out = df[[config_dict['site_col'],config_dict['timestamp_col'],config_dict['pollutant_col'],'z_score_mod','event_type','hour','median','days_captured']].rename(columns={"median":"median_at_hour"})
     
     return(out)
