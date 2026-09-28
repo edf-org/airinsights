@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
 import warnings
+from airinsights.helpers import _validate_hourly
 
-def get_hotspot_type(high_hours, time_bins):
+def _get_hotspot_type(high_hours, time_bins):
+    """Labels the period(s) during the day (morning, midday, evening, night, or all day) when sites have elevated measurements""" 
     labels = [label for label, hours in time_bins.items() if high_hours.isin(hours).any()]
     if set(labels) == set(time_bins):
         return "All day"
@@ -11,15 +13,17 @@ def get_hotspot_type(high_hours, time_bins):
 def anomalous_sites(
     input_data: pd.DataFrame, 
     config_dict: dict,
+    timeframes:dict = {"30d": pd.Timedelta(days=30), "90d": pd.Timedelta(days=90) , "1y": pd.DateOffset(years = 1)},
     z_thresh : int = 1,  
 ):
     """Identifies and flags sites in the network with anomolously high pollution levels
 
-    This function calculates mean hourly pollutant levels for each site in the network for multiple timeframes: 
-    30 days, 90 days, 1 year, and the entire period of record. For each of these timeframes, it identifies sites and hours of day with 
-    anomolously high levels of pollution using a modified Z-score to compare site-specific hourly means with network-wide hourly means. 
-    For each site, the function assigns a label based on the hours of day when elevated pollution is detected at each site 
-    (Morning, Midday, Evening, Night, All Day, or None).
+    This function identifies sites and hours of day with anomolously high levels of pollution
+    using a modified Z-score to compare site-specific hourly means with network-wide hourly means. 
+    The function assigns a label based on the hours of day when elevated pollution 
+    is detected (Morning, Midday, Evening, Night, All Day, or None). 
+    The analysis is always run on all available data ('all time' in the output), and 
+    may additionally be run on one or more user-defined timeframes (e.g., the most recent 30 days).
 
     See examples/anomalous_sites_demo.py on GitHub for a full working example: 
     https://github.com/edf-org/airinsights/blob/main/examples/anomalous_sites_demo.py
@@ -27,12 +31,18 @@ def anomalous_sites(
     Parameters
     ----------
     input_data : pd.DataFrame
-        A pandas DataFrame containing AQ data
+        A pandas DataFrame containing AQ data (read in using read_aqdata_file)
     config_dict : dict
-        A dictionary containing input parameter names and values. See 'Other Parameters' for a list
+        A dictionary containing input parameter names and values. 
+    timeframes : dict[str, pd.TimeDelta | pd.DateOffset] | None
+        Analysis periods to evaluate in addition to all available data, or 
+        `None`, which will only evaluate all available data.
+        Dictionary keys are labels that will appear in the output. 
+        Dictionary values are either TimeDelta or DateOffset objects, 
+        and define lookback periods relative to the most recent 
+        datetime in the data. Defaults to 30 day, 90 day, and 1 year timeframes.
     z_thresh : int, default 1
         
-
     Returns
     -------
     pd.DataFrame
@@ -54,23 +64,6 @@ def anomalous_sites(
             **times_elevated**: string indicated when elevated levels of a specific pollutant are occurring at the site. 
             Possible values include: "None" indicating levels are not elevated during any time during the day, "All Day" indicating elevated levels 
             during all times of the day, or any combination of "Morning" (6am-11am), "Midday" (11am-5pm), "Evening" (5pm-9pm), or "Night" (9pm-6am)
-            
-                    
-
-    Other Parameters
-    ----------------
-    site_col : str or int
-        Name of the column containing unique identifiers for the air sensors
-    lat_col: str 
-        Name of column containing site latitude
-    lon_col: str
-        Name of column containing site longitude
-    timestamp_col : str
-        Name of the column containing dates and times for each measurement
-    value_col : str
-        Name of the column containing measurement values
-    pollutant_col : str
-        Name of the column containing the pollutant name
         
     Notes
     -----
@@ -78,9 +71,11 @@ def anomalous_sites(
     The modified Z-score is calculated as ``abs[(mean_hourly_value - median_value) / 1.4826 * MAD]``, where 1.4826 is a 
     scaling factor used to make MAD comparable to standard deviation. See https://en.wikipedia.org/wiki/Median_absolute_deviation
     """
-    
-    # --- Deep copy input data to avoid unintentionally alterring original ---
+
     df = input_data.copy()
+    
+    # --- Validate hourly time resolution ---
+    df = _validate_hourly(df, config_dict)
 
     # --- Extract geographic coordinates for all sites to join back later ---
     coords = df[[config_dict['site_col'], config_dict['lat_col'], config_dict['lon_col']]].drop_duplicates()   
@@ -92,51 +87,60 @@ def anomalous_sites(
     max_time = df[config_dict['timestamp_col']].max()
     
     # Initialize a dictionary for subsets of data, starting with data from the entire period of record
-    timeframes = {
+    df_timeframe_dict = {
         "all_time": df
     }
     
-    # Define timeframes for analysis (30 days, 90 days, and 1 year)
-    timeframe_labels = ["30d", "90d", "1y"]
-    timeframe_date_lims = [(max_time - pd.Timedelta(days=30)), (max_time - pd.Timedelta(days=90)), (max_time - pd.DateOffset(years=1))]
+    # get unique combinations of site and pollutant 
+    site_pol_combos = df[[config_dict['site_col'], config_dict['pollutant_col']]].drop_duplicates()
     
-    # Check for data completeness for each timeframe. 
+    # Check for data completeness for each timeframe, site, and pollutant.
     # If data are sufficiently complete, add to the dictionary. Otherwise, issue a warning.
-    for label, date_lim in zip(timeframe_labels, timeframe_date_lims):
-        subset = df[df[config_dict['timestamp_col']] >= date_lim]
-        # TODO: issue warning and continue loop if dataframe is empty
-        pollutants = set(subset[config_dict['pollutant_col']])
-        incomplete_pollutants = []
+    for label, timeframe in timeframes.items():
+        # calculate the earliest date in the timeframe
+        date_lim = max_time - timeframe
+        # initialize dictionary to collect combinations of site and pollutant that don't meet the data completeness threshold for the given timeframe
+        incomplete_site_pol_combos = {}
         # evaluate data completeness for each pollutant in the dataset 
-        for pollutant in pollutants:
-            pol_subset = subset[subset[config_dict['pollutant_col']] == pollutant]
-            
-            # check that beginning of data is within 2 days of the beginning of the timeframe
-            if pol_subset[config_dict['timestamp_col']].min() > (date_lim + pd.Timedelta(days = 2)):
-                incomplete_pollutants.append(pollutant)
-                warnings.warn(f"{label} timeframe for {pollutant} not included since data begins more than 2 days after timeframe start.")
+        for row in site_pol_combos.itertuples(index = False): 
+            # get all data for site-pollutant combination
+            pol_site_subset = df[(df[config_dict['pollutant_col']] == getattr(row,config_dict['pollutant_col'])) & (df[config_dict['site_col']] == getattr(row, config_dict['site_col']))]
+            # get all data for site-pollutant combination within timeframe
+            tf_site_col_subset = pol_site_subset[pol_site_subset[config_dict['timestamp_col']] >= date_lim]
+            # check that beginning of data is before the beginning of the timeframe
+            if not pol_site_subset[config_dict['timestamp_col']].min() < date_lim:
+                incomplete_site_pol_combos[getattr(row, config_dict['site_col'])] = getattr(row,config_dict['pollutant_col'])
+                # TODO: Consolidate error message e.g., if no data exist at any site for a given pollutant and timeframe, only throw one error message instead of n_sites
+                warnings.warn(f"{getattr(row,config_dict['pollutant_col'])} data at site {getattr(row, config_dict['site_col'])} for {label} timeframe for not analyzed because data begin after timeframe start.")
                 continue
-        
             # calculate number of valid days (i.e., those with at least 18 hours, or 75% of the day)
-            pol_subset['date'] = pol_subset[config_dict['timestamp_col']].dt.date
+            tf_site_col_subset['date'] = tf_site_col_subset[config_dict['timestamp_col']].dt.date
             valid_days = (
-                pol_subset.groupby('date')
+                tf_site_col_subset.groupby('date')
                 .agg({'hour': 'nunique'})
                 .loc[lambda x: x['hour'] >= 18]
             )
             n_valid_days = len(valid_days)
-            
             # calculate total number of days in the timeframe
             n_days = (max_time - date_lim).days
-            
             # check that valid days account for at least 75% of the number of days in the entire timeframe
+            #TODO - use generic data completeness check across functions (trends, anomalous sites, etc.)
             if n_valid_days < 0.75*n_days:
-                incomplete_pollutants.append(pollutant)
-                warnings.warn(f"Timeframe {label} not included since data does not meet 75% completeness criteria")
+                incomplete_site_pol_combos[getattr(row, config_dict['site_col'])] = getattr(row,config_dict['pollutant_col'])
+                warnings.warn(f"{getattr(row,config_dict['pollutant_col'])} data at site {getattr(row, config_dict['site_col'])} for {label} timeframe for not analyzed because data do not meet 75% completeness criteria")
                 continue
-        # add data for pollutants that meet completeness criteria for timeframe to the data dictionary
-        timeframes[label] = subset[~subset[config_dict["pollutant_col"]].isin(incomplete_pollutants)]
-    
+        # Create a multi-index of site-pollutant combinations  
+        remove_idx = pd.MultiIndex.from_tuples(
+            incomplete_site_pol_combos.items(),
+            names = [config_dict['site_col'], config_dict['pollutant_col']]
+        )
+        tf_subset = df[df[config_dict['timestamp_col']] >= date_lim]
+        df_idx = pd.MultiIndex.from_frame(
+            tf_subset[[config_dict['site_col'],config_dict['pollutant_col']]]
+        )
+        # add data that meets completeness criteria to data dictionary
+        # TODO: check if data frame is empty and, if so, throw a warning.
+        df_timeframe_dict[label] = tf_subset[~df_idx.isin(remove_idx)]
     
     # --- Define hours corresponding to times of day ---
     time_bins = {
@@ -149,7 +153,7 @@ def anomalous_sites(
     results = []
 
     # --- For each timeframe and pollutant, identify sites with elevated pollution relative to network ---
-    for tf_name, df_tf in timeframes.items():
+    for tf_name, df_tf in df_timeframe_dict.items():
 
         if df_tf.empty:
             continue
@@ -182,9 +186,9 @@ def anomalous_sites(
 
         # --- Identify sites with elevated pollution and assign hotspot type (e.g., morning, midday, evening, night, or all day) ---
         
-        for (site, pollutant), site_data in mean_val_by_site.groupby([config_dict['site_col'], config_dict['pollutant_col']]):
+        for (_, pollutant), site_data in mean_val_by_site.groupby([config_dict['site_col'], config_dict['pollutant_col']]):
             elevated = site_data["z_score_mod"] > z_thresh
-            hotspot = get_hotspot_type(site_data.loc[elevated, "hour"], time_bins)
+            hotspot = _get_hotspot_type(site_data.loc[elevated, "hour"], time_bins)
             results.append(
                 site_data.assign(
                     z_thresh=z_thresh,
