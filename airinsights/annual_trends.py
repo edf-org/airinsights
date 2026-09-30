@@ -2,29 +2,50 @@ import pandas as pd
 import pymannkendall as mk
 import numpy as np
 from airinsights.helpers import _infer_temporal_freq
+import warnings
+import calendar
 
 def _check_stat(stat):
     """Validate stat argument for 'mean', 'median', or a valid percentile string"""
-    if stat in ('mean','median'):
-        return
-    if isinstance(stat,str) and stat.startswith('p') and stat[1:].isdigit() and 0 <= int(stat[1:]) <= 100:
-        return
-    raise ValueError(f"stat must be 'mean', 'median', or a percentile string like 'p90', got {stat!r}")
+    
+    # validate dtype
+    if not isinstance(stat,str):
+        raise TypeError(f"stat must be a string, got {type(stat)}")
 
-def _stat_threshold(x,freq_hours,stat='mean',threshold=0.75):
-    if x.empty or len(x) < 2:
-        return np.nan
-    expected = x.index.days_in_month[0] * 24 / freq_hours # expected hours - adjusts to daily data etc
-    actual = x.count() # count non-nulls
-    if (actual / expected) < threshold:
-        return np.nan
-    if stat == 'mean':
-        return x.mean()
-    if stat == 'median':
-        return x.median()
-    return x.quantile(int(stat[1:]) / 100)
+    # is it a percentile string?
+    is_percentile = stat.startswith('p') and stat[1:].isdigit() and 0 <= int(stat[1:]) <= 100
 
-def _monthly_stat(site_data,config_dict,stat='mean'):
+    # raise error if stat is not any of the options
+    if stat not in ('mean','median') and not is_percentile:
+        raise ValueError(f"stat must be 'mean', 'median', or a percentile string like 'p90', got {stat!r}")
+
+def _stat_threshold(x,
+                    freq_hours,
+                    stat='mean',
+                    threshold=0.75
+                    ):
+    """For a single month of grouped data, calculate specified statistic with data capture threshold"""
+    
+    result = np.nan # if no data or below capture threshold, return nan
+
+    # if data, calculate statistic
+    if not x.empty:
+        expected = x.index.days_in_month[0] * 24 / freq_hours # expected hours - adjusts to daily data etc
+        actual = x.count() # count non-nulls
+        if (actual / expected) >= threshold:
+            if stat == 'mean':
+                result = x.mean()
+            elif stat == 'median':
+                result = x.median()
+            else:
+                result = x.quantile(int(stat[1:]) / 100)
+    return result
+
+def _monthly_stat(site_data,
+                  config_dict,
+                  stat='mean'
+                  ):
+    """Resample site timeseries to monthly, using data capture threshold and statistic"""
     freq_hours = _infer_temporal_freq(site_data[config_dict['timestamp_col']]).total_seconds() / 3600
     result = (site_data.set_index(config_dict['timestamp_col'])[config_dict['value_col']]
               .resample("MS")
@@ -35,17 +56,24 @@ def _monthly_stat(site_data,config_dict,stat='mean'):
 
 # for seasonal mann-kendall and theil-sen, the important part is to have data for the same month(s) in multiple years
 # criteria is at least 75% of months (>= 9 months) have non-NA values for 3 or more years
-def _completeness_check(series,min_months=9,min_years_per_month=3):
+def _completeness_check(series,
+                        min_months=9,
+                        min_years_per_month=3
+                        ):
+    """Validate monthly time series to ensure sufficient data capture for trends method"""
     valid = series.dropna()
     years_per_month = valid.groupby(valid.index.month).apply(lambda x: x.index.year.nunique())
     complete = (years_per_month >= min_years_per_month).sum() >= min_months
     return complete
 
-def site_trends(input_data,config_dict,stat:str = 'mean',return_data:bool = False):
+def annual_trends(input_data: pd.DataFrame,
+                config_dict: dict,
+                stat:str = 'mean'
+                ):
     """Calculates historical AQ trends by site and pollutant - are pollution levels increasing or decreasing over multiple years?
 
         This function takes disaggregated AQ measurements, takes monthly averages, and uses statistical tests to determine the
-        direction and significance of the trend. Theil-sen and mann-kendall tests are used to determine the magnitude (slope) and
+        direction and significance of the trend. Theil-Sen and Mann-Kendall tests are used to determine the magnitude (slope) and
         significance of the trend. To account for seasonality, a seasonal test is applied where each month is compared to the same
         month in past years.
 
@@ -62,8 +90,6 @@ def site_trends(input_data,config_dict,stat:str = 'mean',return_data:bool = Fals
             Statistic used to aggregate measurements to a monthly value. One of 'mean', 'median', or a
             percentile string like 'p90' (90th percentile). Useful for tracking how extremes, not just central tendency,
             are changing over time. 
-        return_data: bool
-            Return the monthly average data? default = False
 
         Returns
         -------
@@ -80,21 +106,24 @@ def site_trends(input_data,config_dict,stat:str = 'mean',return_data:bool = Fals
         Notes
         -----
         The network-level trend (network_trend and data_out['network_monthly']) always combines sites by averaging
-        each site's monthly stat across sites, regardless of the stat parameter.
+        each site's monthly stat across sites, regardless of the stat parameter (which defines the stat for monthly aggregation at each site).
         """
     # TODO - reduce redunancy with data audit by moving data capture filters outside
 
+    # validate the user-input statistic for monthly resampling
     _check_stat(stat)
 
     if stat != 'mean':
-        print(f"Note: network-level trend uses the mean across sites of each site's monthly {stat}")
+        warnings.warn(f"Note: network-level trend uses the mean across sites of each site's monthly {stat}")
 
+    # initiate outputs
     network = []
     annual = []
     monthly = []
     network_data = []
     site_data = []
-    
+
+    # loop through pollutants to calculate trends
     for pollutant, pollutant_data in input_data.groupby(config_dict['pollutant_col']):
 
         # calculate monthly means with 75% threshold for valid hours
@@ -106,13 +135,14 @@ def site_trends(input_data,config_dict,stat:str = 'mean',return_data:bool = Fals
         df_monthly[config_dict['pollutant_col']] = pollutant
         
         # run seasonal MK/theil-sen on network monthly mean
-        monthly_network_mean =  (df_monthly.groupby(df_monthly.index).agg(
-            value=(config_dict['value_col'], 'mean'),
-            n_sites=(config_dict['site_col'], 'nunique')
+        monthly_network_mean = (df_monthly.groupby(df_monthly.index).agg(  
+            value = (config_dict['value_col'], 'mean'),  
+            n_sites = (config_dict['value_col'], 'count')  
         )
         .asfreq('MS')) # ensure monthly data with no gaps
         monthly_network_mean[config_dict['pollutant_col']] = pollutant   
-                      
+
+        # if there is sufficient data, calculate network trends              
         if _completeness_check(monthly_network_mean['value']):
             res = mk.seasonal_test(monthly_network_mean['value'], period=12)
             valid = monthly_network_mean['value'].dropna() 
@@ -134,19 +164,17 @@ def site_trends(input_data,config_dict,stat:str = 'mean',return_data:bool = Fals
                 'end_month' : valid.index.max()
             })
         else:
-            print(f"Skipping network trends for {pollutant}: insufficient seasonal completeness")
+            warnings.warn(f"Skipping network trends for {pollutant}: insufficient seasonal completeness")
+        network_data.append(monthly_network_mean) # append network data to return
 
-        # run seasonal MK/theil-sen
+        # if there is sufficient data, calculate site trends   
         for site, data in df_monthly.groupby(config_dict['site_col']):
             if _completeness_check(data[config_dict['value_col']]):
                 res = mk.seasonal_test(data[config_dict['value_col']], period=12)
                 valid = data[config_dict['value_col']].dropna() 
                 # add the trend line result to the data
-                temp = data.copy()
-                position = np.arange(len(temp))
-                temp['trend_line'] = res.intercept + res.slope * (position / 12)
-                site_data.append(temp)
-                # create results dict 
+                position = np.arange(len(data))
+                trend_line = res.intercept + res.slope * (position / 12)
                 annual.append({
                     config_dict['pollutant_col']: pollutant,
                     config_dict['site_col']: site,
@@ -159,47 +187,42 @@ def site_trends(input_data,config_dict,stat:str = 'mean',return_data:bool = Fals
                     'start_month' : valid.index.min(),
                     'end_month' : valid.index.max()
                 })
+                site_data.append(data.assign(trend_line=trend_line)) # append site data to return
             else:
-                print(f"Skipping trends for {pollutant} at site {site}: insufficient seasonal completeness")
+                warnings.warn(f"Skipping trends for {pollutant} at site {site}: insufficient seasonal completeness")  
 
-        # run disagg (on each month with 3 years) MK/theil-sen
+        # if there is sufficient data, calculate site trends disaggregated by month of year  
         df_monthly['month'] = df_monthly.index.month
         for (site, month), data in df_monthly.groupby([config_dict['site_col'],'month']):
             if data[config_dict['value_col']].count() >= 3: # require >=3 values for a month to calculate trend
-                try:
-                    res = mk.original_test(data[config_dict['value_col']])
-                    monthly.append({
-                        config_dict['pollutant_col']: pollutant,
-                        config_dict['site_col']: site,
-                        'month': month,
-                        'trend': res.trend,
-                        'slope': res.slope,
-                        'intercept': res.intercept,
-                        'p_value': res.p}) 
-                except Exception as e:
-                    print(f"Skipping {site} at {month} for {pollutant}: {e}")
-                    continue
+                res = mk.original_test(data[config_dict['value_col']])
+                monthly.append({
+                    config_dict['pollutant_col']: pollutant,
+                    config_dict['site_col']: site,
+                    'month': month,
+                    'trend': res.trend,
+                    'slope': res.slope,
+                    'intercept': res.intercept,
+                    'p_value': res.p})
+            else:
+                warnings.warn(f"Skipping {calendar.month_abbr[month]} trends for {pollutant} at site {site}: fewer than 3 years of data")
         
-        network_data.append(monthly_network_mean)
-        
-    # compile and check results
+    # compile and check site results
     network_trend = pd.DataFrame(network)
     annual_trend = pd.DataFrame(annual)
     if annual_trend.empty and network_trend.empty:
         raise ValueError("Data contains no sites or network-level results with sufficient data capture for trend analysis.")
     monthly_trend = pd.DataFrame(monthly)
     
-    # add back to original metadata
+    # add back original metadata
     metadata = input_data[[config_dict['site_col'], config_dict['lat_col'], config_dict['lon_col']]].drop_duplicates()
     annual_trend = annual_trend.merge(metadata,on = config_dict['site_col'])
     monthly_trend = monthly_trend.merge(metadata,on = config_dict['site_col']) if not monthly_trend.empty else monthly_trend
-    
+
+    # assemble output data
     data_out = {
         'network_monthly': pd.concat(network_data) if network_data else pd.DataFrame(),
         'site_monthly': pd.concat(site_data) if site_data else pd.DataFrame()
     }
 
-    if return_data:
-        return network_trend,annual_trend, monthly_trend, data_out
-    else:
-        return network_trend,annual_trend, monthly_trend
+    return network_trend, annual_trend, monthly_trend, data_out
