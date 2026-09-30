@@ -18,15 +18,20 @@
 #   value_col (str): When data is in 'long' format, the name of the column with measurement values 
 
 ### Required Inputs ###
-timestamp_col: "Datetime"
-timestamp_format: "%m/%d/%Y %H:%M"
-timestamp_tz: "America/Los_Angeles"
-local_tz: "America/Los_Angeles"
-site_col: "Site"
-lat_col: "Latitude"
-lon_col: "Longitude"
+timestamp_col: "datetime"
+timestamp_format: "%Y-%m-%d %H:%M:%S+00:00"
+timestamp_tz: "UTC"
+local_tz: "America/Detroit"
+site_col: "site_name"
+lat_col: "lat"
+lon_col: "lon"
 pollutant_map: 
-  "BC": "hourly_BC"
+    "PM2.5": "pm25" # fill these with info from your data
+    "PM10": "pm10" 
+    "O3": "o3" 
+    "NO2": "no2" 
+    "SO2": "so2" 
+    "CO": "co" 
 
 ### Required if data is 'long' format ###
 value_col: "value"
