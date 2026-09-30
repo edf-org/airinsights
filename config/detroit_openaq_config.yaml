@@ -1,46 +1,37 @@
-# timestamp column info
-timestamp_col: datetime
-timestamp_tz: UTC # see list of possible time zones at https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568
-timestamp_format: '%Y-%m-%d %H:%M:%S+00:00'
-local_tz: 'America/Detroit'
+### Configuration Parameters:
+#   timestamp_col (str): Name of the column containing date and time
+#   timestamp_format (str): Format of the timestamp column usign python datetime syntax
+#       For example: 2026-01-01 09:27:11 -> %Y-%m-%d %H:%M:%S 
+#       For more info, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior
+#   timestamp_tz : str
+#       Timezone of the timestamp column. For example: "America/Los_Angeles". 
+#       For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#   local_tz : str
+#       Local timezone to convert the timestamp column to. 
+#       For example: "America/Los_Angeles". For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#   site_col (str): Name of the column containing unique identifiers for the monitoring site
+#   lat_col (str): Name of the column containing the latitude of the monitoring site
+#   lon_col (str): Name of the column containing the longitude of the monitoring site
+#   pollutant_map (dict): Dictionary of pollutant names with standard names as the key and input data names as value.
+#       For example: "PM2.5": "pm2_5"
+#       Standard name options: "BC","PM1","PM2.5","PM10","NO","NO2","NOx","O3","CO","SO2"
+#   value_col (str): When data is in 'long' format, the name of the column with measurement values 
 
-# metadata column info
-site_col: site_name
-lat_col: lat
-lon_col: lon
-type_col: site_type
-city: detroit
+### Required Inputs ###
+timestamp_col: "datetime"
+timestamp_format: "%Y-%m-%d %H:%M:%S+00:00"
+timestamp_tz: "UTC"
+local_tz: "America/Detroit"
+site_col: "site_name"
+lat_col: "lat"
+lon_col: "lon"
+pollutant_map: 
+    "PM2.5": "pm25" # fill these with info from your data
+    "PM10": "pm10" 
+    "O3": "o3" 
+    "NO2": "no2" 
+    "SO2": "so2" 
+    "CO": "co" 
 
-# is data in wide format? (one column per pollutant)
-wide_format: false 
-
-# if data is in long format, specify the pollutant_col and value_col.
-pollutant_col: parameter # Column name with pollutant labels
-value_col: value # Column name with measurements
-
-# add your pollutant names and units
-# for wide data, match pollutant names to the columns with measurements for that pollutant
-# for long data, pollutant names appear in pollutant_col
-pollutants: 
-    "PM2.5":
-        name: "pm25" # fill these with info from your data
-        units: "ug/m3"
-    "PM10":  
-        name: "pm10" 
-        units: "ug/m3"
-    "O3":
-        name: "o3" 
-        units: "ug/m3"
-    "NO2": 
-        name: "no2" 
-        units: "ug/m3"
-    "SO2": 
-        name: "so2" 
-        units: "ug/m3"
-    "CO": 
-        name: "co" 
-        units: "ppm"
-
-# data download info
-data_source: openaq
-bounding_box: [-83.2878, 42.2550, -82.9103, 42.4504]
+### Required if data is 'long' format ###
+value_col: "value"

@@ -1,37 +1,32 @@
 ### Configuration Parameters:
 #   timestamp_col (str): Name of the column containing date and time
-#   site_col (str): Name of the column containing unique identifiers for the monitoring site
-#   value_col (str): Name of the column containing the values for the pollutant of interest
-#   datetime_format (str): Format of the timestamp column usign python datetime syntax
+#   timestamp_format (str): Format of the timestamp column usign python datetime syntax
 #       For example: 2026-01-01 09:27:11 -> %Y-%m-%d %H:%M:%S 
 #       For more info, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior
+#   timestamp_tz : str
+#       Timezone of the timestamp column. For example: "America/Los_Angeles". 
+#       For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#   local_tz : str
+#       Local timezone to convert the timestamp column to. 
+#       For example: "America/Los_Angeles". For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#   site_col (str): Name of the column containing unique identifiers for the monitoring site
 #   lat_col (str): Name of the column containing the latitude of the monitoring site
 #   lon_col (str): Name of the column containing the longitude of the monitoring site
+#   pollutant_map (dict): Dictionary of pollutant names with standard names as the key and input data names as value.
+#       For example: "PM2.5": "pm2_5"
+#       Standard name options: "BC","PM1","PM2.5","PM10","NO","NO2","NOx","O3","CO","SO2"
+#   value_col (str): When data is in 'long' format, the name of the column with measurement values 
 
 ### Required Inputs ###
-timestamp_col: Datetime
+timestamp_col: "Datetime"
+timestamp_format: "%m/%d/%Y %H:%M"
 timestamp_tz: "America/Los_Angeles"
 local_tz: "America/Los_Angeles"
-site_col: Site
-timestamp_format: "%m/%d/%Y %H:%M"
-lat_col: Latitude
-lon_col: Longitude
-wide_format: True
-pollutant_col: pollutant
-value_col: value
-pollutants:
-  BC:
-    name: "hourly_BC"
-    units: "ug/m3"
+site_col: "Site"
+lat_col: "Latitude"
+lon_col: "Longitude"
+pollutant_map: 
+  "BC": "hourly_BC"
 
-### Optional Parameters:
-#   file_delimiter (str):
-#   output_file_path (str):
-#   confidence_col (str): column containing measurement confidence values
-#   confidence_threshold (int | float): confidence value measurements must meet to be included
-#       in the data
-
-file_delimiter:
-output_file_path:
-confidence_col:
-confidence_threshold:
+### Required if data is 'long' format ###
+value_col: "value"
