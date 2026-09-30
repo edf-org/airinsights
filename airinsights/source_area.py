@@ -7,18 +7,24 @@ import requests
 import rioxarray
 from shapely.geometry import shape
 from shapely.ops import unary_union
+import warnings
 
-def get_airtracker(input_data:pd.DataFrame,config_dict:dict,max_workers: int = 16):
+def source_area(input_data: pd.DataFrame,
+                config_dict: dict,
+                max_workers: int = 16
+                ):
     """Get airtracker footprint for each measurement in a dataset, in parallel
 
-    Calls airtracker_footprint once per row of input_data using each row's timestamp and coordinates.
-    Typically run on the disaggregated output of classify_pollution_events to identify likely upwind source areas for 
-    local pollution events.
+    Calls _airtracker_footprint once per row of input_data using each row's timestamp and coordinates.
+    Typically run on the disaggregated output of pollution_events() to identify likely upwind source areas for 
+    local pollution events. Air Tracker is currently available only in certain locations; for more information about Air Tracker
+    methods and locations please visit: https://www.edf.org/air-tracker-mapping-local-air-pollution. 
     
     Parameters
     ----------
     input_data : pd.DataFrame
-        A pandas DataFrame with one row per measurement, containing timestamp, latitude, longitude, site, and event_ID columns.
+        A pandas DataFrame with one row per measurement, containing timestamp, latitude, 
+        longitude, site, pollutant, and event_ID columns.
     config_dict : dict
         A dictionary containing input parameter names and values. See 'Other Parameters' for a list.
     max_workers : int, default 16
@@ -26,9 +32,9 @@ def get_airtracker(input_data:pd.DataFrame,config_dict:dict,max_workers: int = 1
 
     Returns
     -------
-    gpd.GeoDataFrame or None
+    gpd.GeoDataFrame
         A GeoDataFrame with one row per successfully retrieved footprint, containing the footprint geometry (as both
-        a shapely geometry and a WKT string), timestamp, longitude, latitude, event_ID, and site columns.
+        a shapely geometry and a WKT string), timestamp, site, longitude, latitude, pollutant, and event_ID columns.
 
     Other Parameters
     ----------------
@@ -40,60 +46,58 @@ def get_airtracker(input_data:pd.DataFrame,config_dict:dict,max_workers: int = 1
         Name of the longitude column
     site_col : str or int
         Name of the column containing unique identifiers for the air sensors
-    """
+    """    
+    # columns names from df to pass to _airtracker_footprint function (one row at a time)
+    time, lat, lon = config_dict['timestamp_col'], config_dict['lat_col'], config_dict['lon_col']
+    unique = input_data[[time, lat, lon]].drop_duplicates() # only run on unique airtracker footprints
 
-    # for each row in pollution event df, get a footprint
-    def _run_once(row):
-        gdf = airtracker_footprint(
-            time=getattr(row, config_dict['timestamp_col']),
-            lon=getattr(row, config_dict['lon_col']),
-            lat=getattr(row, config_dict['lat_col']),
-            output="vector"
-        )
-        gdf['event_ID'] = getattr(row, 'event_ID')
-        gdf[config_dict['site_col']] = getattr(row, config_dict['site_col'])
-        return gdf
-
-    results = [] 
+    # initiate parallel run of _airtracker_footprint by unique time and location
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(_run_once, row) for row in input_data.itertuples()]
-        for f in concurrent.futures.as_completed(futures):
-            try:
-                results.append(f.result())
-            except Exception as e:
-                print(f"Failed with error: {e}")
-    
-    non_empty = [df for df in results if not df.empty]
-    if non_empty:
-        return pd.concat(non_empty, ignore_index=True)
+        results = executor.map(_airtracker_footprint,unique[time],unique[lat],unique[lon]) # args passed in order
+        geoms = [r.geometry.iloc[0] if r is not None else None for r in results] # get geometry for each run 
 
-def airtracker_footprint(time:pd.Timestamp,lon:float,lat:float,output = "vector"):
+    # add geoms to input_data, including wkt string
+    gdf = gpd.GeoDataFrame(input_data[[time, lat, lon, config_dict['site_col'],config_dict['pollutant_col'], 'event_ID']] # select return cols
+                           .merge(unique.assign(geometry=geoms), on=[time, lat, lon], how='left'),
+                           geometry='geometry', crs="EPSG:4326")
+    gdf['wkt_geometry'] = gdf['geometry'].to_wkt()
+
+    return gdf
+
+def _airtracker_footprint(time: pd.Timestamp,
+                         lat: float,
+                         lon: float,
+                         output: str = "vector"):
     """Get an airtracker footprint for a single time and location. Option to return as raster or vector."""
     
     # convert to format airtracker expects - it is in local time, so this converts to string while maintaining local
-    time = pd.Timestamp(time).strftime("%Y-%m-%dT%H:%M") 
+    time_str = pd.Timestamp(time).strftime("%Y-%m-%dT%H:%M") 
     
     if output not in ("vector", "raster"):
         raise ValueError(f"output must be 'vector' or 'raster', got {output!r}")
     
-    url = (f'https://api.airtracker.createlab.org/get_footprint?view={lat},{lon},12&time={time}' 
+    url = (f'https://api.airtracker.createlab.org/get_footprint?view={lat},{lon},12&time={time_str}' 
            '&showContributionLikelihoods=true&isRealTime=true&format=geotiff')
-    
-    content = requests.get(url)
-    content.raise_for_status()
-    
-    with MemoryFile(content.content) as memfile, memfile.open() as src:
-        raster = rioxarray.open_rasterio(src).isel(band=3).load() # select band that shows whole footprint (not relative strength)
 
-    if output == "raster":
-        return raster
-    
-    elif output == "vector":
-        mask = raster.values > 0
-        geoms = [shape(s) for s, _ in shapes(mask.astype("uint8"),mask=mask, transform=raster.rio.transform())]
-        merged = unary_union(geoms) if geoms else None
-        gdf = gpd.GeoDataFrame({"time": [time], "lon": [lon], "lat": [lat]},
-                               geometry=[merged], crs=raster.rio.crs).to_crs("EPSG:4326")
-        gdf['wkt_geometry'] = gdf['geometry'].to_wkt()
-        #gdf = gdf.drop(columns=['geometry']) if we want to keep WKT only
-        return gdf
+    try:
+        content = requests.get(url,timeout=60)
+        content.raise_for_status()
+        
+        with MemoryFile(content.content) as memfile, memfile.open() as src:
+            raster = rioxarray.open_rasterio(src).isel(band=3).load() # select band that shows whole footprint (not relative strength)
+
+        if output == "raster":
+            out = raster
+        
+        elif output == "vector":
+            mask = raster.values > 0
+            geoms = [shape(s) for s, _ in shapes(mask.astype("uint8"),mask=mask, transform=raster.rio.transform())]
+            merged = unary_union(geoms) if geoms else None
+            gdf = gpd.GeoDataFrame({"time": [time], "lon": [lon], "lat": [lat]},
+                                   geometry=[merged], crs=raster.rio.crs).to_crs("EPSG:4326")
+            out = gdf
+    except Exception as e:
+        warnings.warn(f"Footprint failed at {time_str}, {lat}, {lon}: {e}")
+        out = None
+
+    return out
