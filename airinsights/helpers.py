@@ -285,14 +285,18 @@ def _melt_long(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
     return df
 
 def _localize_tz(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
-    """ Localize the column to tz specified in config, """
+    """ Localize the column to tz specified in config """
     # TODO this could be made automatic based on lat/lon of data
 
     ts_col = df[config_dict['timestamp_col']]
 
     if not isinstance(ts_col.dtype, pd.DatetimeTZDtype): # if there is no timezone in pandas, assign the correct one from config
-        ts_col = ts_col.dt.tz_localize(config_dict['timestamp_tz'])
-    
+        ts_col = ts_col.dt.tz_localize(config_dict['timestamp_tz'], ambiguous='NaT', nonexistent='NaT')
+        # drop times that are repeated or skipped at DST changes
+        if ts_col.isna().any(): 
+            warnings.warn(f"Dropped {ts_col.isna().sum()} rows with missing or ambiguous local times (e.g. DST transitions)")
+            df, ts_col = df[ts_col.notna()], ts_col[ts_col.notna()]
+
     if str(ts_col.dt.tz) == config_dict['local_tz']:
         print(f"Timestamp already in local timezone: {config_dict['local_tz']}")
     else:
