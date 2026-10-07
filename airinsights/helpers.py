@@ -330,7 +330,7 @@ def _infer_temporal_freq(t):
     """  
     diffs = t.sort_values().diff().dropna()
     diffs = diffs[diffs > pd.Timedelta(0)]  # drop zero diffs (duplicate timestamps)
-    return diffs.mode().iloc[0]
+    return diffs.mode().iloc[0] if not diffs.empty else pd.NaT
 
 # TODO - make this just for averaging now that we have _validate_hourly, and add thresholds
 # implement in trends function to reduce duplication
