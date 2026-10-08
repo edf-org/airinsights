@@ -94,24 +94,28 @@ def anomalous_sites(
     # get unique combinations of site and pollutant 
     site_pol_combos = df[[config_dict['site_col'], config_dict['pollutant_col']]].drop_duplicates()
     
+    
     # Check for data completeness for each timeframe, site, and pollutant.
     # If data are sufficiently complete, add to the dictionary. Otherwise, issue a warning.
     for label, timeframe in timeframes.items():
         # calculate the earliest date in the timeframe
         date_lim = max_time - timeframe
-        # initialize dictionary to collect combinations of site and pollutant that don't meet the data completeness threshold for the given timeframe
-        incomplete_site_pol_combos = {}
+        # initialize list to collect combinations of site and pollutant that don't meet the data completeness threshold for the given timeframe
+        incomplete_site_pol_combos = []
         # evaluate data completeness for each pollutant in the dataset 
-        for row in site_pol_combos.itertuples(index = False): 
+        for pollutant, site in zip(site_pol_combos[config_dict["pollutant_col"]], site_pol_combos[config_dict["site_col"]]):
             # get all data for site-pollutant combination
-            pol_site_subset = df[(df[config_dict['pollutant_col']] == getattr(row,config_dict['pollutant_col'])) & (df[config_dict['site_col']] == getattr(row, config_dict['site_col']))]
+            pol_site_subset = df[(df[config_dict['pollutant_col']] == pollutant) & (df[config_dict['site_col']] == site)]
             # get all data for site-pollutant combination within timeframe
             tf_site_col_subset = pol_site_subset[pol_site_subset[config_dict['timestamp_col']] >= date_lim]
             # check that beginning of data is before the beginning of the timeframe
             if not pol_site_subset[config_dict['timestamp_col']].min() < date_lim:
-                incomplete_site_pol_combos[getattr(row, config_dict['site_col'])] = getattr(row,config_dict['pollutant_col'])
-                # TODO: Consolidate error message e.g., if no data exist at any site for a given pollutant and timeframe, only throw one error message instead of n_sites
-                warnings.warn(f"{getattr(row,config_dict['pollutant_col'])} data at site {getattr(row, config_dict['site_col'])} for {label} timeframe for not analyzed because data begin after timeframe start.")
+                incomplete_site_pol_combos.append({
+                    "site": site,
+                    "pollutant": pollutant
+                })
+                #TODO: Consolidate error message e.g., if no data exist at any site for a given pollutant and timeframe, only throw one error message instead of n_sites
+                warnings.warn(f"{pollutant} data at site {site} for {label} timeframe for not analyzed because data begin after timeframe start.")
                 continue
             # calculate number of valid days (i.e., those with at least 18 hours, or 75% of the day)
             tf_site_col_subset['date'] = tf_site_col_subset[config_dict['timestamp_col']].dt.date
@@ -126,20 +130,20 @@ def anomalous_sites(
             # check that valid days account for at least 75% of the number of days in the entire timeframe
             #TODO - use generic data completeness check across functions (trends, anomalous sites, etc.)
             if n_valid_days < 0.75*n_days:
-                incomplete_site_pol_combos[getattr(row, config_dict['site_col'])] = getattr(row,config_dict['pollutant_col'])
-                warnings.warn(f"{getattr(row,config_dict['pollutant_col'])} data at site {getattr(row, config_dict['site_col'])} for {label} timeframe for not analyzed because data do not meet 75% completeness criteria")
+                incomplete_site_pol_combos.append({
+                                    "site": site,
+                                    "pollutant": pollutant
+                                })
+                warnings.warn(f"{pollutant} data at site {site} for {label} timeframe for not analyzed because data do not meet 75% completeness criteria")
                 continue
         # Create a multi-index of site-pollutant combinations  
-        remove_idx = pd.MultiIndex.from_tuples(
-            incomplete_site_pol_combos.items(),
-            names = [config_dict['site_col'], config_dict['pollutant_col']]
-        )
+        remove_idx = pd.MultiIndex.from_frame(pd.DataFrame(incomplete_site_pol_combos))
         tf_subset = df[df[config_dict['timestamp_col']] >= date_lim]
         df_idx = pd.MultiIndex.from_frame(
             tf_subset[[config_dict['site_col'],config_dict['pollutant_col']]]
         )
         # add data that meets completeness criteria to data dictionary
-        # TODO: check if data frame is empty and, if so, throw a warning.
+        #TODO: check if data frame is empty and, if so, throw a warning.
         df_timeframe_dict[label] = tf_subset[~df_idx.isin(remove_idx)]
     
     # --- Define hours corresponding to times of day ---
