@@ -73,10 +73,10 @@ pip install airinsights
 ## 📖 Examples
 
 Example scripts using sample data are located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder on GitHub:
-* [Pollution event detection example](https://github.com/edf-org/airinsights/blob/main/examples/pollution_event.ipynb)
-* [Trend analysis example](https://github.com/edf-org/airinsights/blob/main/examples/trends.ipynb)
+* [Pollution event detection example](https://github.com/edf-org/airinsights/blob/main/examples/pollution_events.ipynb)
+* [Trend analysis example](https://github.com/edf-org/airinsights/blob/main/examples/annual_trends.ipynb)
 * [Areas of interest example](https://github.com/edf-org/airinsights/blob/main/examples/anomalous_sites.ipynb)
-* [Source identification example]
+* [Source identification example](https://github.com/edf-org/airinsights/blob/main/examples/source_area.ipynb)
 
 Air Insights uses a configuration file to ensure your data can be parsed correctly. Set up instructions are also located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder. 
 * [Setting Up Air Insights](https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb)
