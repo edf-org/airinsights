@@ -14,6 +14,7 @@ We are now honing and automating these methods to develop <b>Air Insights</b> �
 * How severe is air pollution in my area? 
 * Are certain locations or times more impacted?
 * What are the likely sources contributing to air pollution hotspots?
+* How has air quality changed over time? 
 * Are air quality improvement policies in my area working?
 * Are there areas that urgently require follow-up investigation or health alerts?
   
@@ -21,21 +22,21 @@ We are now honing and automating these methods to develop <b>Air Insights</b> �
 ---
 <div align="center">
 
-# Alpha Release 2026.04.27
+# Beta Release 2026.10.XX
 
 </div>
 
 ## 💡 Core Features
 
-* **Anomaly Detection** – Detect and flag measurements that are atypical for each monitor at different hours of the day with the `pollution_event()` function
+* **Event Detection** – Detect and flag measurements that are atypical for each monitor at different hours of the day with the `pollution_event()` function
+* **Trend Analysis** – Quantify diurnal, seasonal, and long-term trends, controlling for weather variability to help assess changes over time such as from policies like low emission zones or fuel restrictions with the `annual_trends()` function
+* **Source Identification** – Identify likely locations of upwind pollution sources using Air Tracker with the `source_area()` function 
+* **Areas of Interest** – Detect locations that repeatedly show unusual pollution patterns compared to the monitoring network as a whole with the `anomalous_site()` function 
 
 
 ## 🕑 Coming Soon
 
-* **Areas of Interest** – Detect locations that repeatedly show unusual pollution patterns compared to the monitoring network as a whole
-* **Trend Analysis** – Quantify diurnal, seasonal, and long-term trends, controlling for weather variability to help assess changes over time such as from policies like low emission zones or fuel restrictions
-* **Source Identification** – Identify likely locations of upwind pollution sources using AirTracker
-* **Data Quality Evaluation** – Assess AQ data quality, completeness, and reliability
+* **Data Audit** – Assess AQ data quality, completeness, and reliability
 
 <div align="center">
 
@@ -73,8 +74,15 @@ pip install airinsights
 
 Example scripts using sample data are located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder on GitHub:
 * [Pollution event detection example](https://github.com/edf-org/airinsights/blob/main/examples/pollution_event_demo.py)
+* [Trend analysis example]
+* [Areas of interest example]
+* [Source area example] 
+
+Air Insights uses a configuration file to ensure your data can be parsed correctly. Set up instructions are also located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder. 
+* [Setting Up Air Insights]
+
 
 <hr>
 
 ## License
-**Air Insights** is licensed under the [GNU General Public License version 3.0](https://www.gnu.org/licenses/gpl-3.0.en.html#license-text).
+**Air Insights** is licensed under the [Apache License Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
