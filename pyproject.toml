@@ -23,7 +23,7 @@ description = "A suite of open-source analysis tools that turn complex air quali
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE.txt"]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
@@ -34,19 +34,21 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
-    "boto3>=1.43.0",
-    "geopandas>=1.1.4",
-    "google-cloud-bigquery>=3.40.0",
-    "numpy>=2.1.0",
-    "openaq>=1.1.0",
-    "pandas>=3.0.0",
-    "polars>=1.39.0",
-    "pyarrow>=23.0.1",
-    "pymannkendall>=1.4.3",
-    "pyyaml>=6.0.3",
-    "rioxarray>=0.23.0",
-    "rasterio>=1.5.0",
-    "scikit-learn>=1.8.0"
+    "boto3 >= 1.43.0",
+    "geopandas >= 1.1.4",
+    "google-cloud-bigquery >= 3.40.0",
+    "numpy >= 2.1.0",
+    "openaq >= 1.1.0",
+    "pandas >= 3.0.0",
+    "polars >= 1.39.0",
+    "pyarrow >= 23.0.1",
+    "pymannkendall >= 1.4.3",
+    "pyyaml >= 6.0.3",
+    "requests >= 2.34.2",
+    "rioxarray >= 0.23.0",
+    "rasterio >= 1.5.0",
+    "shapely >= 2.2.0",
+    "scikit-learn >= 1.8.0"
 ]
 
 [project.urls]
