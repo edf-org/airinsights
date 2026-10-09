@@ -151,8 +151,11 @@ def anomalous_sites(
                                 })
                 warnings.warn(f"{pollutant} data at site {site} for {label} timeframe for not analyzed because data do not meet 75% completeness criteria")
                 continue
-        # Create a multi-index of site-pollutant combinations  
-        remove_idx = pd.MultiIndex.from_frame(pd.DataFrame(incomplete_site_pol_combos))
+        # Create a multi-index of site-pollutant combinations
+        if incomplete_site_pol_combos:
+            remove_idx = pd.MultiIndex.from_frame(pd.DataFrame(incomplete_site_pol_combos))
+        else:
+            remove_idx = pd.MultiIndex.from_frame(pd.DataFrame(["site", "pollutant"]))
         tf_subset = df[df[config_dict['timestamp_col']] >= date_lim]
         df_idx = pd.MultiIndex.from_frame(
             tf_subset[[config_dict['site_col'],config_dict['pollutant_col']]]
