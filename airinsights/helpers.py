@@ -53,6 +53,9 @@ def build_config(
 ) -> str:
     """
     Builds a new yaml config file and writes to specified file path to load and analyze data with AirInsights.
+    
+    See examples/airinsights_setup.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb
 
     Parameters
     ----------
@@ -114,7 +117,11 @@ def build_config(
 def load_config(
     config_file : str | Path
 ) -> dict:
-    """Loads a YAML configuration file and checks for required parameters
+    """Loads a YAML configuration file and checks for required parameters.
+    
+    See examples/airinsights_setup.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb
+
 
     Parameters
     ----------
@@ -169,8 +176,11 @@ def read_aqdata_file(
     input_file : str | Path,
     config_file : str | Path
 ) -> tuple[pd.DataFrame, dict]:
-    """Reads in AQ data file to a pandas DataFrame, then formats the DataFrame using inputs from a YAML configuration file
-    Supported AQ data file formats are csv, json, and excel files (xls, xlsx, xlsm)
+    """Reads in AQ data file to a pandas DataFrame, then formats the DataFrame using inputs from a YAML configuration file.
+    Supported AQ data file formats are csv, json, and excel files (xls, xlsx, xlsm).
+
+    See examples/airinsights_setup.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb
 
     Parameters
     ----------

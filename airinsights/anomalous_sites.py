@@ -30,7 +30,7 @@ def anomalous_sites(
     timeframes:dict = {"30d": pd.Timedelta(days=30), "90d": pd.Timedelta(days=90) , "1y": pd.DateOffset(years = 1)},
     z_thresh : int = 1,  
 ):
-    """Identifies and flags sites in the network with anomolously high pollution levels
+    """Identifies and flags sites in the network with anomalously high pollution levels
 
     This function identifies sites and hours of day with anomolously high levels of pollution
     using a modified Z-score to compare site-specific hourly means with network-wide hourly means. 
@@ -39,15 +39,15 @@ def anomalous_sites(
     The analysis is always run on all available data ('all time' in the output), and 
     may additionally be run on one or more user-defined timeframes (e.g., the most recent 30 days).
 
-    See examples/anomalous_sites_demo.py on GitHub for a full working example: 
-    https://github.com/edf-org/airinsights/blob/main/examples/anomalous_sites_demo.py
-    
+    See examples/anomalous_sites.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/anomalous_sites.ipynb
+
     Parameters
     ----------
-    input_data : pd.DataFrame
-        A pandas DataFrame containing AQ data (read in using read_aqdata_file)
-    config_dict : dict
-        A dictionary containing input parameter names and values. 
+    input_data: pd.DataFrame
+        A pandas DataFrame containing AQ data that was read using one of the helpers.read_aqdata_[x] routines.
+    config_dict: dict
+        A dictionary containing input_data parameters that was read using one of the helpers.read_aqdata_[x] routines.
     timeframes : dict[str, pd.TimeDelta | pd.DateOffset] | None
         Analysis periods to evaluate in addition to all available data, or 
         `None`, which will only evaluate all available data.
@@ -62,23 +62,24 @@ def anomalous_sites(
     pd.DataFrame
         A pandas DataFrame containing mean pollutant levels (site_mean) for each site, pollutant, and hour of day for each timeframe, 
         along with the following:
-                
+
             **network_median**: Network-wide median pollutant level for the pollutant, hour of day, and timeframe under consideration
-            
+
             **network_mad**: Network-wide median absolute deviation (MAD) for the pollutant, hour of day, and timeframe under consideration
-            
+
             **z_score_mod**: modified Z-score of the site_mean, calculated using the network-wide median and MAD 
-            
+
             **z_thresh**: Z-score threshold used to determine whether pollutant levels at a site are elevated relative to the network
-            
+
             **elevated**: boolean indicating whether pollutant levels are elevated at the site for the pollutant, hour of day, and timeframe under consideration
-            
+
             **n_hours_elevated**: integer indicating the number of hours when pollutant levels are elevated relative to the network
-            
+
             **times_elevated**: string indicated when elevated levels of a specific pollutant are occurring at the site. 
-            Possible values include: "None" indicating levels are not elevated during any time during the day, "All Day" indicating elevated levels 
-            during all times of the day, or any combination of "Morning" (6am-11am), "Midday" (11am-5pm), "Evening" (5pm-9pm), or "Night" (9pm-6am)
-        
+            Possible values include: "None" indicating levels are not elevated during any time during the day, 
+            "All Day" indicating elevated levels during all times of the day, or any combination of 
+            "Morning" (6am-11am), "Midday" (11am-5pm), "Evening" (5pm-9pm), or "Night" (9pm-6am)
+
     Notes
     -----
     

@@ -51,16 +51,19 @@ def pollution_events(input_data: pd.DataFrame,
     the network z-score is above the z_thresh (e.g. network_z = 2.5) but an individual site is still
     enhanced by more than the z_thresh relative to the network (e.g. at site E, site_z = 6 so local_z = 3.5).
 
+    See examples/pollution_events.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/pollution_events.ipynb
+
     Parameters
     ----------
     input_data: pd.DataFrame
-        A pandas DataFrame containing AQ data that has been read using one of the helpers.read_aqdata_[x] routines or matches the resulting schema which is in LONG format (pollutant, value columns).
+        A pandas DataFrame containing AQ data that was read using one of the helpers.read_aqdata_[x] routines.
     config_dict: dict
-        A dictionary containing input parameter names and values.
+        A dictionary containing input_data parameters that was read using one of the helpers.read_aqdata_[x] routines.
     window_size : int, default 60
-        Number of days in the rolling window used for z-score calculations. 
+        Number of days in the rolling window used to determine 'typical' pollutant values and calculate z-scores. 
     z_thresh : float, default 2
-        Threshold for modified z score to include measurements in event classification. Default value of 2 ("Unusually high").
+        Threshold for modified z-score to include measurements in pollution event classification. Default value of 2 ("Unusually high").
     local_distance_km : float, default 1
         Eps (in km) for local DBSCAN run; the greatest distance at which monitors are grouped as neighbors. Default value of 1 km.
 
@@ -79,7 +82,7 @@ def pollution_events(input_data: pd.DataFrame,
 
             **scale**: "Regional", "Local", or "Unknown"
 
-            **sites**: "Network-wide" for Regional events, or a comma-separated list of sites for Local events
+            **sites**: "Network-wide" for Regional events, or a comma-separated list of sites for Local and Unknown events
 
             **peak_value**: maximum measured value observed during the event
 
@@ -87,30 +90,30 @@ def pollution_events(input_data: pd.DataFrame,
 
     measurements: pd.DataFrame
         A pandas DataFrame containing the site, timestamp, and pollutant columns from the input data with the following columns appended:
-            
+
             **hour**: hour of day
 
             **days_captured**: number of days with data captured in the historical window
-            
+
             **site_typical**: measurement median for hour of day over historical window
-                        
+
             **site_z**: modified Z-score of the AQ measurement calculated using MAD over historical window
 
             **elevated_flag**: severity of elevated measurement based on site_z. A Z-score greater than 2 is "Unusually high", 
             a Z-score greater than 3 is "Extremely high". Z-scores below 2 are returned as NULL.  
             "Insufficient number of days captured" is returned if window size was insufficient to calculate a Z-score
-            
+
             **n_sites**: number of monitoring sites with a valid z_score at that timestamp (used for network_z)
-            
+
             **network_z**: network-wide median z-score at that timestamp
-            
+
             **local_z**: the site's z-score, adjusted for the network z-score (local_z = site_z - network_z)
-            
+
             **network_value**: network-wide median measured value at that timestamp
 
             **network_typical**: network-wide median of each site's typical value for that hour of day
 
-            **event_ID**: list of pollution event_ID's associated with that site/timestamp.
+            **event_ID**: list of pollution event_ID's associated with that site/timestamp/pollutant
 
     Notes
     -----
