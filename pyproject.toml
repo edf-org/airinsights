@@ -7,23 +7,25 @@ build-backend = "hatchling.build"
 
 [project]
 name = "airinsights"
-version = "2026.08.10.b" # Year.Month.Day-Beta
+version = "2026.10.09.b" # Year.Month.Day-Beta
 authors = [
   { name = "Environmental Defense Fund", email = "edfair@edf.org"},
 ]
 maintainers = [
   {name = "Alex Adame"},
+  {name = "Vana Brookins"},
   {name = "Gabriella Brinkley"},
+  {name = "Libby Mohr"},
   {name = "Lauren Padilla"},
   {name = "Dan Peters"},
 ]
-description = "Methods for analyzing air quality data"
+description = "A suite of open-source analysis tools that turn complex air quality datasets into localized insights to drive targeted clean-air actions."
 readme = "README.md"
-license = "GPL-3.0-or-later"
+license = "Apache-2.0"
 license-files = ["LICENSE.txt"]
 requires-python = ">=3.11"
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "Operating System :: OS Independent",
   "Programming Language :: Python",
