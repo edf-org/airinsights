@@ -14,6 +14,7 @@ We are now honing and automating these methods to develop <b>Air Insights</b> �
 * How severe is air pollution in my area? 
 * Are certain locations or times more impacted?
 * What are the likely sources contributing to air pollution hotspots?
+* How has air quality in my area changed over time? 
 * Are air quality improvement policies in my area working?
 * Are there areas that urgently require follow-up investigation or health alerts?
   
@@ -21,39 +22,27 @@ We are now honing and automating these methods to develop <b>Air Insights</b> �
 ---
 <div align="center">
 
-# Alpha Release 2026.04.27
+# Beta Release 2026.10.09
 
 </div>
 
 ## 💡 Core Features
 
-* **Anomaly Detection** – Detect and flag measurements that are atypical for each monitor at different hours of the day with the `pollution_event()` function
+* **Pollution Event Detection** – Detect and flag measurements that are atypical for each monitor at different hours of the day with the `pollution_events()` function and group them into regional and local pollution events to investigate
+* **Trend Analysis** – Quantify annual trends to help assess changes over time and understand whether air quality policies are working with the `annual_trends()` function
+* **Source Identification** – Identify likely locations of upwind pollution sources using Air Tracker with the `source_area()` function 
+* **Areas of Interest** – Detect locations that repeatedly show unusual pollution patterns compared to the monitoring network as a whole with the `anomalous_sites()` function 
 
 
 ## 🕑 Coming Soon
 
-* **Areas of Interest** – Detect locations that repeatedly show unusual pollution patterns compared to the monitoring network as a whole
-* **Trend Analysis** – Quantify diurnal, seasonal, and long-term trends, controlling for weather variability to help assess changes over time such as from policies like low emission zones or fuel restrictions
-* **Source Identification** – Identify likely locations of upwind pollution sources using AirTracker
-* **Data Quality Evaluation** – Assess AQ data quality, completeness, and reliability
+* **Data Audit** – Assess AQ data quality, completeness, and reliability
+* **Visualizations** – Use built-in visualizations to generate custom reports
+* **Reliability Improvements** - Automated tests and improved logging
 
 <div align="center">
 
 </div>
-
-<hr>
-
-## 📖 Documentation
-
-Access documentation for each function using Python in your IDE of choice.
-
-For example:
-```r
-help(airinsights)
-help(pollution_event)
-```
-
-<hr>
 
 ## 🗃️ Installation
 
@@ -69,12 +58,31 @@ pip install airinsights
 
 <hr>
 
+## 📖 Documentation
+
+Access documentation for each function using Python in your IDE of choice.
+
+For example:
+```r
+help(airinsights)
+help(pollution_event)
+```
+
+<hr>
+
 ## 📖 Examples
 
 Example scripts using sample data are located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder on GitHub:
-* [Pollution event detection example](https://github.com/edf-org/airinsights/blob/main/examples/pollution_event_demo.py)
+* [Pollution event detection example](https://github.com/edf-org/airinsights/blob/main/examples/pollution_events.ipynb)
+* [Trend analysis example](https://github.com/edf-org/airinsights/blob/main/examples/annual_trends.ipynb)
+* [Areas of interest example](https://github.com/edf-org/airinsights/blob/main/examples/anomalous_sites.ipynb)
+* [Source identification example](https://github.com/edf-org/airinsights/blob/main/examples/source_area.ipynb)
+
+Air Insights uses a configuration file to ensure your data can be parsed correctly. Set up instructions are also located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder. 
+* [Setting Up Air Insights](https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb)
+
 
 <hr>
 
 ## License
-**Air Insights** is licensed under the [GNU General Public License version 3.0](https://www.gnu.org/licenses/gpl-3.0.en.html#license-text).
+**Air Insights** is licensed under the [Apache License Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
