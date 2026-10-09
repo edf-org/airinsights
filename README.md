@@ -28,33 +28,21 @@ We are now honing and automating these methods to develop <b>Air Insights</b> �
 
 ## 💡 Core Features
 
-* **Event Detection** – Detect and flag measurements that are atypical for each monitor at different hours of the day with the `pollution_event()` function
-* **Trend Analysis** – Quantify diurnal, seasonal, and long-term trends, controlling for weather variability to help assess changes over time such as from policies like low emission zones or fuel restrictions with the `annual_trends()` function
+* **Pollution Event Detection** – Detect and flag measurements that are atypical for each monitor at different hours of the day with the `pollution_events()` function and group them into regional and local pollution events to investigate
+* **Trend Analysis** – Quantify annual trends to help assess changes over time and understand whether air quality policies are working with the `annual_trends()` function
 * **Source Identification** – Identify likely locations of upwind pollution sources using Air Tracker with the `source_area()` function 
-* **Areas of Interest** – Detect locations that repeatedly show unusual pollution patterns compared to the monitoring network as a whole with the `anomalous_site()` function 
+* **Areas of Interest** – Detect locations that repeatedly show unusual pollution patterns compared to the monitoring network as a whole with the `anomalous_sites()` function 
 
 
 ## 🕑 Coming Soon
 
 * **Data Audit** – Assess AQ data quality, completeness, and reliability
+* **Visualizations** – Use built-in visualizations to generate custom reports
+* **Reliability Improvements** - Automated tests and improved logging
 
 <div align="center">
 
 </div>
-
-<hr>
-
-## 📖 Documentation
-
-Access documentation for each function using Python in your IDE of choice.
-
-For example:
-```r
-help(airinsights)
-help(pollution_event)
-```
-
-<hr>
 
 ## 🗃️ Installation
 
@@ -66,6 +54,18 @@ Binary installers for the latest released version are available at the [Python P
 ```sh
 # PyPI
 pip install airinsights
+```
+
+<hr>
+
+## 📖 Documentation
+
+Access documentation for each function using Python in your IDE of choice.
+
+For example:
+```r
+help(airinsights)
+help(pollution_event)
 ```
 
 <hr>
