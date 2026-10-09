@@ -14,7 +14,7 @@ We are now honing and automating these methods to develop <b>Air Insights</b> â€
 * How severe is air pollution in my area? 
 * Are certain locations or times more impacted?
 * What are the likely sources contributing to air pollution hotspots?
-* How has air quality changed over time? 
+* How has air quality in my area changed over time? 
 * Are air quality improvement policies in my area working?
 * Are there areas that urgently require follow-up investigation or health alerts?
   
@@ -73,13 +73,13 @@ pip install airinsights
 ## ðŸ“– Examples
 
 Example scripts using sample data are located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder on GitHub:
-* [Pollution event detection example](https://github.com/edf-org/airinsights/blob/main/examples/pollution_event_demo.py)
-* [Trend analysis example]
-* [Areas of interest example]
-* [Source area example] 
+* [Pollution event detection example](https://github.com/edf-org/airinsights/blob/main/examples/pollution_event.ipynb)
+* [Trend analysis example](https://github.com/edf-org/airinsights/blob/main/examples/trends.ipynb)
+* [Areas of interest example](https://github.com/edf-org/airinsights/blob/main/examples/anomalous_sites.ipynb)
+* [Source identification example]
 
 Air Insights uses a configuration file to ensure your data can be parsed correctly. Set up instructions are also located in the [examples](https://github.com/edf-org/airinsights/tree/main/examples) folder. 
-* [Setting Up Air Insights]
+* [Setting Up Air Insights](https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb)
 
 
 <hr>
