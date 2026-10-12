@@ -20,7 +20,7 @@ import warnings
 STANDARD_POLLUTANTS = {
     "BC",
     "PM1",
-    "PM2.5",
+    "PM2_5",
     "PM10",
     "NO",
     "NO2",
@@ -40,7 +40,7 @@ def build_config(
     lon_col: str = 'lon',
     pollutant_map: dict[str,str] = {"BC": "bc",
                                     "PM1": "pm1",
-                                    "PM2.5": "pm25",
+                                    "PM2_5": "pm25",
                                     "PM10": "pm10",
                                     "NO": "no",
                                     "NO2": "no2",
@@ -79,9 +79,9 @@ def build_config(
         Name of the longitude column
     pollutant_map :
         Dictionary specifying the pollutant(s) to analyze. The keys must
-        be standard Airinsights pollutant names (e.g., "PM2.5", "NO2", "O3"),
+        be standard Airinsights pollutant names (e.g., "PM2_5", "NO2", "O3"),
         and the values are the corresponding pollutant column names in the input
-        data. For example: {"PM2.5": "pm25", "NO2": "no2"}.
+        data. For example: {"PM2_5": "pm25", "NO2": "no2"}.
     value_col : str, default 'value'
         Applies only when input data is in long format. Name of the column containing the measurement values. 
     config_file : str, default 'config/example_config.yaml'
@@ -160,7 +160,7 @@ def load_config(
     pollutant_map_errors = [standard_pollutant for standard_pollutant, pollutant_name in config_dict["pollutant_map"].items()
                             if not standard_pollutant or not pollutant_name]
     if pollutant_map_errors:
-        raise ValueError("pollutant_map has invalid entries, check config. Each pollutant requires a standard name and name from input data, e.g. {'PM2.5': 'pm25'}.")
+        raise ValueError("pollutant_map has invalid entries, check config. Each pollutant requires a standard name and name from input data, e.g. {'PM2_5': 'pm25'}.")
 
     # fourth, do pollutant_map keys match standard pollutant names?
     non_standard = set(config_dict["pollutant_map"]) - STANDARD_POLLUTANTS # any non-standard pollutants?
