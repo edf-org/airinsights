@@ -142,7 +142,7 @@ def run_pipeline(config_file:str | Path):
     df[site] = df.sort_values(ts).groupby(keys[0])[site].transform('last') # one name per site if they change
     
     # run airinsights after formatting data
-    # todo: make formatting step an option (read_aqdata_frame)
+    # todo: make formatting step an option in helpers (read_aqdata_frame)
     results = run_airinsights(_dedupe(_localize_tz(_melt_long(df, config_dict), config_dict), config_dict), config_dict) 
 
     # only run airtracker when specified in config_dict
