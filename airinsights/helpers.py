@@ -302,6 +302,8 @@ def _melt_long(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
     else:  
         df = df[df[pollutant_col].isin(config_dict['pollutant_map'].values())]
 
+    df = df.dropna(subset=[value_col])  # drop rows with no value
+    
     # update pollutant and value column names of long format data in config_dict
     config_dict['value_col'] = value_col
     config_dict['pollutant_col'] = pollutant_col
