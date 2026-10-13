@@ -1,3 +1,17 @@
+# Copyright 2026 Environmental Defense Fund, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import yaml
 from pathlib import Path
 import pandas as pd
@@ -6,7 +20,7 @@ import warnings
 STANDARD_POLLUTANTS = {
     "BC",
     "PM1",
-    "PM2.5",
+    "PM2_5",
     "PM10",
     "NO",
     "NO2",
@@ -26,7 +40,7 @@ def build_config(
     lon_col: str = 'lon',
     pollutant_map: dict[str,str] = {"BC": "bc",
                                     "PM1": "pm1",
-                                    "PM2.5": "pm25",
+                                    "PM2_5": "pm25",
                                     "PM10": "pm10",
                                     "NO": "no",
                                     "NO2": "no2",
@@ -39,6 +53,9 @@ def build_config(
 ) -> str:
     """
     Builds a new yaml config file and writes to specified file path to load and analyze data with AirInsights.
+    
+    See examples/airinsights_setup.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb
 
     Parameters
     ----------
@@ -62,9 +79,9 @@ def build_config(
         Name of the longitude column
     pollutant_map :
         Dictionary specifying the pollutant(s) to analyze. The keys must
-        be standard Airinsights pollutant names (e.g., "PM2.5", "NO2", "O3"),
+        be standard Airinsights pollutant names (e.g., "PM2_5", "NO2", "O3"),
         and the values are the corresponding pollutant column names in the input
-        data. For example: {"PM2.5": "pm25", "NO2": "no2"}.
+        data. For example: {"PM2_5": "pm25", "NO2": "no2"}.
     value_col : str, default 'value'
         Applies only when input data is in long format. Name of the column containing the measurement values. 
     config_file : str, default 'config/example_config.yaml'
@@ -100,7 +117,11 @@ def build_config(
 def load_config(
     config_file : str | Path
 ) -> dict:
-    """Loads a YAML configuration file and checks for required parameters
+    """Loads a YAML configuration file and checks for required parameters.
+    
+    See examples/airinsights_setup.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb
+
 
     Parameters
     ----------
@@ -139,7 +160,7 @@ def load_config(
     pollutant_map_errors = [standard_pollutant for standard_pollutant, pollutant_name in config_dict["pollutant_map"].items()
                             if not standard_pollutant or not pollutant_name]
     if pollutant_map_errors:
-        raise ValueError("pollutant_map has invalid entries, check config. Each pollutant requires a standard name and name from input data, e.g. {'PM2.5': 'pm25'}.")
+        raise ValueError("pollutant_map has invalid entries, check config. Each pollutant requires a standard name and name from input data, e.g. {'PM2_5': 'pm25'}.")
 
     # fourth, do pollutant_map keys match standard pollutant names?
     non_standard = set(config_dict["pollutant_map"]) - STANDARD_POLLUTANTS # any non-standard pollutants?
@@ -155,8 +176,11 @@ def read_aqdata_file(
     input_file : str | Path,
     config_file : str | Path
 ) -> tuple[pd.DataFrame, dict]:
-    """Reads in AQ data file to a pandas DataFrame, then formats the DataFrame using inputs from a YAML configuration file
-    Supported AQ data file formats are csv, json, and excel files (xls, xlsx, xlsm)
+    """Reads in AQ data file to a pandas DataFrame, then formats the DataFrame using inputs from a YAML configuration file.
+    Supported AQ data file formats are csv, json, and excel files (xls, xlsx, xlsm).
+
+    See examples/airinsights_setup.ipynb on GitHub for a full working example: 
+    https://github.com/edf-org/airinsights/blob/main/examples/airinsights_setup.ipynb
 
     Parameters
     ----------

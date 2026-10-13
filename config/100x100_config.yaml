@@ -13,8 +13,8 @@
 #   lat_col (str): Name of the column containing the latitude of the monitoring site
 #   lon_col (str): Name of the column containing the longitude of the monitoring site
 #   pollutant_map (dict): Dictionary of pollutant names with standard names as the key and input data names as value.
-#       For example: "PM2.5": "pm2_5"
-#       Standard name options: "BC","PM1","PM2.5","PM10","NO","NO2","NOx","O3","CO","SO2"
+#       For example: "PM2_5": "pm2_5"
+#       Standard name options: "BC","PM1","PM2_5","PM10","NO","NO2","NOx","O3","CO","SO2"
 #   value_col (str): When data is in 'long' format, the name of the column with measurement values 
 
 ### Required Inputs ###
