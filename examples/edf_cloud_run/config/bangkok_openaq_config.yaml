@@ -27,11 +27,11 @@ lat_col: "lat"
 lon_col: "lon"
 pollutant_map: 
     "PM2_5": "pm25" # fill these with info from your data
-    #"PM10": "pm10" 
-    #"O3": "o3" 
+    "PM10": "pm10" 
+    "O3": "o3" 
     "NO2": "no2" 
-    #"SO2": "so2" 
-    #"CO": "co" 
+    "SO2": "so2" 
+    "CO": "co" 
 
 ### Required if data is 'long' format ###
 value_col: "value"
