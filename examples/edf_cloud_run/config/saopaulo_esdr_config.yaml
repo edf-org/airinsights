@@ -39,4 +39,6 @@ value_col: "value"
 ### Required for using data pipeline functions
 bounding_box: [-46.83, -24.00, -46.36, -23.36]
 data_source: "esdr"
+storage_type: "bigquery"
 location: "valhalla_beta_saopaulo"
+airtracker: true

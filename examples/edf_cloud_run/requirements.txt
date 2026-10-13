@@ -1,5 +1,6 @@
 airinsights @ https://github.com/edf-org/airinsights/archive/refs/heads/deploy.tar.gz
-dlt[bigquery,filesystem,gs,parquet,duckdb,sqlalchemy]>=1.31
+dlt[bigquery,filesystem,gs,parquet,duckdb,sqlalchemy]==1.31.0
+sqlglot==30.21.0
 ibis-framework[bigquery]
 boto3
 geopandas

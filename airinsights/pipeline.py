@@ -145,23 +145,25 @@ def run_pipeline(config_file:str | Path):
     # todo: make formatting step an option (read_aqdata_frame)
     results = run_airinsights(_dedupe(_localize_tz(_melt_long(df, config_dict), config_dict), config_dict), config_dict) 
 
-    # get source area for local event rows, only for site-hours not already stored
-    # only go back 365 days for dashboard
-    local_events = results['meas_disagg'][results['meas_disagg']['event_ID'].str.startswith('LOC_', na=False)]
+    # only run airtracker when specified in config_dict
+    if config_dict.get('airtracker', False):
+        # get source area for local event rows, only for site-hours not already stored
+        # only go back 365 days for dashboard
+        local_events = results['meas_disagg'][results['meas_disagg']['event_ID'].str.startswith('LOC_', na=False)]
 
-    cutoff = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=365) # don't go back more than a year
-    seen_airtracker = _last_seen(pipe, 'source_areas', [site], ts) # last footprint stored per site
-    if seen_airtracker:
-        cutoff = max(cutoff, max(seen_airtracker.values())) # get latest airtracker value to start from
-    new_footprints = local_events[local_events[ts] > cutoff]
+        cutoff = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=365) # don't go back more than a year
+        seen_airtracker = _last_seen(pipe, 'source_areas', [site], ts) # last footprint stored per site
+        if seen_airtracker:
+            cutoff = max(cutoff, max(seen_airtracker.values())) # get latest airtracker value to start from
+        new_footprints = local_events[local_events[ts] > cutoff]
 
-    if not new_footprints.empty: # download new footprints
-        airtracker = air.source_area(new_footprints, config_dict)[[site, ts, 'wkt_geometry']].drop_duplicates()
-        airtracker = airtracker[airtracker['wkt_geometry'].notna()] # exclude failed requests
-        pipe.run(dlt.resource(airtracker, name='source_areas', write_disposition='append'), loader_file_format=file_format)
+        if not new_footprints.empty: # download new footprints
+            airtracker = air.source_area(new_footprints, config_dict)[[site, ts, 'wkt_geometry']].drop_duplicates()
+            airtracker = airtracker[airtracker['wkt_geometry'].notna()] # exclude failed requests
+            pipe.run(dlt.resource(airtracker, name='source_areas', write_disposition='append'), loader_file_format=file_format)
 
     # replace other results tables
     pipe.run([dlt.resource(out, name=table, write_disposition='replace') for table, out in results.items() if not out.empty],
-             loader_file_format=file_format)
+            loader_file_format=file_format)
     
     return pipe

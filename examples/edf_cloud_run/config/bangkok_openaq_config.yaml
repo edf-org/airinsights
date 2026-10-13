@@ -39,4 +39,6 @@ value_col: "value"
 ### Required for using data pipeline functions
 bounding_box: [100.47, 13.70, 100.57, 13.78]
 data_source: "openaq"
+storage_type: "bigquery"
 location: "valhalla_beta_bangkok"
+airtracker: false
