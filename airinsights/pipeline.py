@@ -42,23 +42,23 @@ def run_airinsights(aqdata:pd.DataFrame,config_dict:dict):
                                                        'somewhat high', 'unusually high', 'extremely high'],)
     del recent #clean up memory
 
-    # run long-term trends (needs at least 3 years of data)
+    # run long-term trends (needs at least 3 years of data), combine into one results table and one data table
+    # TODO - modify function output
+
     try:
-        trends_network, trends, trends_by_month, trends_data = air.annual_trends(aqdata, config_dict)
+        network, annual, by_month, data = air.annual_trends(aqdata, config_dict)
+        trends = pd.concat([network.assign(level='network'), annual.assign(level='site'), by_month.assign(level='site_month')], ignore_index=True)
+        trends_data = pd.concat([data['network_monthly'].assign(level='network'), data['site_monthly'].assign(level='site')]).rename_axis(ts).reset_index()
     except ValueError as e:
         print(f"Skipping trends: {e}")
-        trends_network = trends = trends_by_month = trends_data = pd.DataFrame()
-        trends_data = {}
-    
+        trends = trends_data = pd.DataFrame()
+
     return {
             "anomalous_sites": anomalous,
             "pollution_events": events,
             "meas_disagg": measurements,
             "annual_trends": trends,
-            "network_trends": trends_network,
-            "trends_by_month": trends_by_month,
-            "trends_network_data": trends_data.get('network_monthly', pd.DataFrame()),
-            "trends_site_data": trends_data.get('site_monthly', pd.DataFrame()),
+            "trends_data": trends_data
         }
 
 dlt.config['schema.naming'] = 'sql_cs_v1' # keep column names as they are
@@ -182,6 +182,12 @@ def run_pipeline(config_file:str | Path,standardize_cols = True):
                 airtracker = air.source_area(month, config_dict)[[site, ts, 'wkt_geometry']].drop_duplicates()
                 airtracker = airtracker[airtracker['wkt_geometry'].notna()] # exclude failed requests
                 pipe.run(dlt.resource(airtracker, name='source_areas', write_disposition='append'), loader_file_format=file_format)
+
+        # join footprints to current local events (rebuilt each run) to have Event_ID for filtering
+        if not local_events.empty and 'source_areas' in pipe.dataset().tables:
+            footprints = pipe.dataset().table('source_areas').df().drop_duplicates([site, ts], keep='last')
+            footprints[ts] = pd.to_datetime(footprints[ts], utc=True).dt.tz_convert(local_events[ts].dt.tz)
+            results['event_source_areas'] = local_events[[site, ts, 'event_ID']].drop_duplicates().merge(footprints, on=[site, ts])
 
     # replace other results tables
     pipe.run([dlt.resource(out, name=table, write_disposition='replace') for table, out in results.items() if not out.empty],
