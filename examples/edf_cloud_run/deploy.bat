@@ -9,10 +9,10 @@ gcloud run jobs deploy airinsights-pipeline-beta ^
   --source . ^
   --project edf-aq-data ^
   --region us-central1 ^
-  --tasks 2 ^
-  --parallelism 2 ^
+  --tasks 5 ^
+  --parallelism 5 ^
   --max-retries 0 ^
-  --task-timeout 30m ^
+  --task-timeout 60m ^
   --memory 16Gi ^
   --cpu 4 ^
   --set-secrets OPENAQ_KEY=openaq:latest,PURPLEAIR_KEY=purpleair:latest

@@ -1,0 +1,20 @@
+### Required Inputs ###
+timestamp_col: "datetime"
+site_col: "sensor_index"
+datetime_format: "%Y-%m-%d %H:%M:%S"
+timestamp_tz: "UTC"
+local_tz: "America/New_York"
+lat_col: "latitude"
+lon_col: "longitude"
+pollutant_map:
+  "PM2_5":"pm2_5"
+
+### Required if data is 'long' format ###
+value_col: 
+
+### Required for using data pipeline functions
+storage_type: "bigquery"
+location: "valhalla_beta_dc"
+airtracker: true
+data_source: "purpleair"
+group_number: 2824

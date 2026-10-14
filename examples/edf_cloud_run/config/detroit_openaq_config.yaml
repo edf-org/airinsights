@@ -1,0 +1,44 @@
+### Configuration Parameters:
+#   timestamp_col (str): Name of the column containing date and time
+#   timestamp_format (str): Format of the timestamp column usign python datetime syntax
+#       For example: 2026-01-01 09:27:11 -> %Y-%m-%d %H:%M:%S 
+#       For more info, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior
+#   timestamp_tz : str
+#       Timezone of the timestamp column. For example: "America/Los_Angeles". 
+#       For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#   local_tz : str
+#       Local timezone to convert the timestamp column to. 
+#       For example: "America/Los_Angeles". For more info, see: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+#   site_col (str): Name of the column containing unique identifiers for the monitoring site
+#   lat_col (str): Name of the column containing the latitude of the monitoring site
+#   lon_col (str): Name of the column containing the longitude of the monitoring site
+#   pollutant_map (dict): Dictionary of pollutant names with standard names as the key and input data names as value.
+#       For example: "PM2_5": "pm2_5"
+#       Standard name options: "BC","PM1","PM2_5","PM10","NO","NO2","NOx","O3","CO","SO2"
+#   value_col (str): When data is in 'long' format, the name of the column with measurement values 
+
+### Required Inputs ###
+timestamp_col: "datetime"
+timestamp_format: "%Y-%m-%d %H:%M:%S+00:00"
+timestamp_tz: "UTC"
+local_tz: "America/Detroit"
+site_col: "site_name"
+lat_col: "lat"
+lon_col: "lon"
+pollutant_map: 
+    "PM2_5": "pm25" # fill these with info from your data
+    "PM10": "pm10" 
+    "O3": "o3" 
+    "NO2": "no2" 
+    "SO2": "so2" 
+    "CO": "co" 
+
+### Required if data is 'long' format ###
+value_col: "value"
+
+### Required for using data pipeline functions
+bounding_box: [-83.178091,42.280694,-83.070116,42.336283]
+data_source: "openaq"
+storage_type: "bigquery"
+location: "valhalla_beta_detroit"
+airtracker: true

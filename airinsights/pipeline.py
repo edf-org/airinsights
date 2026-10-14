@@ -91,16 +91,6 @@ def _last_seen(pipe, table, keys, ts):
     last = pipe.dataset()(f"SELECT {k}, MAX({ts}) AS last_ts FROM {table} GROUP BY {k}").df().set_index(keys)['last_ts']
     return pd.to_datetime(last, utc=True).to_dict() # store timestamps as UTC; sqlite returns them without tz
 
-# dict of accepted data sources paired with download functions
-# on the right are keys (unique identifiers) in each dataset to identify last seen
-DATA_SOURCES = {
-    'openaq': (get_openaq, ['location_id', 'parameter']),
-    'purpleair': (get_purpleair, ['sensor_index']),
-    'esdr': (get_esdr, ['feed_id'])
-}
-
-STORAGE_TYPES = ('parquet', 'csv', 'sqlite', 'bigquery')
-
 def _check_pipeline_config(config_dict):
     """checks the pipeline parameters in the config are present and valid"""
     for key, options in {'data_source': DATA_SOURCES, 'storage_type': STORAGE_TYPES}.items():
@@ -111,6 +101,16 @@ def _check_pipeline_config(config_dict):
 
 STANDARD_COLS = {'timestamp_col': 'datetime', 'site_col': 'site_name', 'pollutant_col': 'parameter',
                  'value_col': 'value', 'lat_col': 'latitude', 'lon_col': 'longitude'}
+
+# dict of accepted data sources paired with download functions
+# on the right are keys (unique identifiers) in each dataset to identify last seen
+DATA_SOURCES = {
+    'openaq': (get_openaq, ['location_id', 'parameter']),
+    'purpleair': (get_purpleair, ['sensor_index']),
+    'esdr': (get_esdr, ['feed_id'])
+}
+
+STORAGE_TYPES = ('parquet', 'csv', 'sqlite', 'bigquery')
 
 def run_pipeline(config_file:str | Path,standardize_cols = True):
     """downloads new measurements, runs all Air Insights methods and stores measurements and results
@@ -175,11 +175,13 @@ def run_pipeline(config_file:str | Path,standardize_cols = True):
         if seen_airtracker:
             cutoff = max(cutoff, max(seen_airtracker.values())) # get latest airtracker value to start from
         new_footprints = local_events[local_events[ts] > cutoff]
-
         if not new_footprints.empty: # download new footprints
-            airtracker = air.source_area(new_footprints, config_dict)[[site, ts, 'wkt_geometry']].drop_duplicates()
-            airtracker = airtracker[airtracker['wkt_geometry'].notna()] # exclude failed requests
-            pipe.run(dlt.resource(airtracker, name='source_areas', write_disposition='append'), loader_file_format=file_format)
+            # go by months in order, saved before the next starts
+            for label, month in new_footprints.groupby(new_footprints[ts].dt.strftime('%Y-%m')):
+                print(f"getting source area for {len(month)} rows in {label}")
+                airtracker = air.source_area(month, config_dict)[[site, ts, 'wkt_geometry']].drop_duplicates()
+                airtracker = airtracker[airtracker['wkt_geometry'].notna()] # exclude failed requests
+                pipe.run(dlt.resource(airtracker, name='source_areas', write_disposition='append'), loader_file_format=file_format)
 
     # replace other results tables
     pipe.run([dlt.resource(out, name=table, write_disposition='replace') for table, out in results.items() if not out.empty],
