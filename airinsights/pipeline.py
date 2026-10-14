@@ -7,13 +7,13 @@ from airinsights.helpers import _dedupe, _localize_tz, _melt_long
 
 def run_airinsights(aqdata:pd.DataFrame,config_dict:dict):
     """Runs all Air Insights analytical methods sequentially and returns a dict of the output tables"""
-    
-    # start with measurement table
-    aqdata = aqdata.copy()
+
+    # set keys and select recent measurements
     site, ts, pol = config_dict['site_col'], config_dict['timestamp_col'], config_dict['pollutant_col']
+    recent = aqdata[aqdata[ts] >= aqdata[ts].max() - pd.Timedelta(days=425)] # most analyses only need to run on just over a year of data, except trends
 
     # run anomalous sites script and add summary by time window of highest and lowest site
-    anomalous = air.anomalous_sites(aqdata,config_dict,z_thresh=1)
+    anomalous = air.anomalous_sites(recent,config_dict,z_thresh=1)
     g = ['timeframe', pol] # summarize by timeframe and pollutant
     site_avgs = anomalous.groupby(g + [site])['site_mean'].mean().round(1).dropna().reset_index() 
     g_means = site_avgs.groupby(g)['site_mean'] 
@@ -27,8 +27,8 @@ def run_airinsights(aqdata:pd.DataFrame,config_dict:dict):
     anomalous = anomalous.merge(extremes, on=g, how='left')
 
     # run pollution events script
-    events, measurements = air.pollution_events(aqdata,config_dict,window_size=60,z_thresh=2,local_distance_km = 5)
-    measurements = aqdata.merge(measurements,on=[site, ts, pol],how="left") # join back to full df
+    events, measurements = air.pollution_events(recent,config_dict,window_size=60,z_thresh=2,local_distance_km = 5)
+    measurements = recent.merge(measurements,on=[site, ts, pol],how="left") # join back to recent df
     
     # explode so one event per column (duplicates some timestamps)
     # necessary for going between summary and disagg in dashboard
@@ -40,6 +40,7 @@ def run_airinsights(aqdata:pd.DataFrame,config_dict:dict):
                                                bins=[-float('inf'), -3, -2, -1, 1, 2, 3, float('inf')],
                                                labels=['extremely low', 'unusually low', 'somewhat low', 'similar',
                                                        'somewhat high', 'unusually high', 'extremely high'],)
+    del recent #clean up memory
 
     # run long-term trends (needs at least 3 years of data)
     try:
@@ -107,9 +108,21 @@ def _check_pipeline_config(config_dict):
             raise ValueError(f"{key} must be one of {', '.join(options)}; got {config_dict.get(key)!r}")
     if not isinstance(config_dict.get('location'), str) or not config_dict['location']:
         raise ValueError("location must be a non-empty string with a file path or dataset name")
+
+STANDARD_COLS = {'timestamp_col': 'datetime', 'site_col': 'site_name', 'pollutant_col': 'parameter',
+                 'value_col': 'value', 'lat_col': 'latitude', 'lon_col': 'longitude'}
+
+def run_pipeline(config_file:str | Path,standardize_cols = True):
+    """downloads new measurements, runs all Air Insights methods and stores measurements and results
     
-def run_pipeline(config_file:str | Path):
-    """downloads new measurements, runs all Air Insights methods and stores measurements and results"""
+    If standardize_cols = True, uses defaults for dashboard integration:
+        datetime
+        site_name
+        parameter
+        value
+        latitude
+        longitude
+    """
 
     # load config dict and parameters
     config_dict = air.load_config(config_file) 
@@ -139,11 +152,16 @@ def run_pipeline(config_file:str | Path):
     else:
         df = pipe.dataset().table('measurements').df()
     df[ts] = pd.to_datetime(df[ts], utc=True) # make ts timezone-aware before localizing
-    df[site] = df.sort_values(ts).groupby(keys[0])[site].transform('last') # one name per site if they change
+    df[site] = df[[ts, keys[0], site]].sort_values(ts).groupby(keys[0])[site].transform('last') # one name per site if they change
     
     # run airinsights after formatting data
     # todo: make formatting step an option in helpers (read_aqdata_frame)
-    results = run_airinsights(_dedupe(_localize_tz(_melt_long(df, config_dict), config_dict), config_dict), config_dict) 
+    df = _dedupe(_localize_tz(_melt_long(df, config_dict), config_dict), config_dict) # reformat raw data to airinsights using helpers
+    if standardize_cols: # if specified, rename the columns to dashboard defaults
+        df = df.rename(columns={config_dict[user]: standard for user, standard in STANDARD_COLS.items()})
+        config_dict.update(STANDARD_COLS) # update config dict for methods in pipeline
+        site, ts = config_dict['site_col'], config_dict['timestamp_col']
+    results = run_airinsights(df, config_dict) 
 
     # only run airtracker when specified in config_dict
     if config_dict.get('airtracker', False):

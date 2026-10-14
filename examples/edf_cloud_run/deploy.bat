@@ -11,8 +11,8 @@ gcloud run jobs deploy airinsights-pipeline-beta ^
   --region us-central1 ^
   --tasks 2 ^
   --parallelism 2 ^
-  --max-retries 1 ^
+  --max-retries 0 ^
   --task-timeout 30m ^
-  --memory 8Gi ^
-  --cpu 2 ^
+  --memory 16Gi ^
+  --cpu 4 ^
   --set-secrets OPENAQ_KEY=openaq:latest,PURPLEAIR_KEY=purpleair:latest
