@@ -364,37 +364,33 @@ def _infer_temporal_freq(t):
 
 # TODO - make this just for averaging now that we have _validate_hourly, and add thresholds
 # implement in trends function to reduce duplication
-def _make_hourly(df,config_dict):
-    """Check time resolution of measurements and average to hourly or throw error"""
-    df = df.copy()
-    freqs = df.groupby([config_dict['site_col'],config_dict['pollutant_col']])[config_dict['timestamp_col']].apply(_infer_temporal_freq)
+def _make_hourly(df,config_dict,thresh = 0.75):
+    """Average sub-hourly measurements to hourly means with threshold
+    
+    Only returns a subset of columns (site, timestamp, pollutant, value, latitude, longitude).
 
-    # exclude data that is less frequent than hourly
-    too_infrequent = freqs[freqs > pd.Timedelta(hours=1)]
-    if not too_infrequent.empty:
-        df = df[~df.set_index([config_dict['site_col'],config_dict['pollutant_col']]).index.isin(too_infrequent.index)]
-        print(f"Excluded data from {len(too_infrequent)} loc/param combinations with time resolution less frequent than hourly")
+    Hours labeled at start
+    """
+    site, ts, pol, val, lat, lon = (config_dict[k] for k in ('site_col', 'timestamp_col', 'pollutant_col', 'value_col', 'lat_col', 'lon_col'))
+    df = df[[ts, site, pol, val, lat, lon]] # keep only the known columns for grouping/averaging
+    freqs = df.groupby([site, pol])[ts].apply(_infer_temporal_freq)
+    sub_hourly = freqs[freqs < pd.Timedelta(hours=1)] 
 
-    # error if all data was less frequent than hourly
-    if df.empty:
-        raise ValueError("All data were excluded as too infrequent (interval > 1h) for this method")
+    # if nothing sub-hourly, pass through data
+    if sub_hourly.empty:
+        out = df
 
-    # average data that is more frequent than hourly
-    sub_hourly = freqs[freqs < pd.Timedelta(hours=1)]
-    if not sub_hourly.empty:
-        value_col = config_dict['value_col']
-        group_cols = [c for c in df.columns if c not in [value_col, config_dict['timestamp_col']]]
-        df = (
-            df.set_index(config_dict['timestamp_col'])
-            .groupby(group_cols)
-            .resample('h')[value_col]
-            .mean()
-            .dropna()
-            .reset_index()
-            )
-        print(f"Resampled {len(sub_hourly)} loc/param combinations to hourly mean")
-
-    return(df)
+    # else average all sub-hourly
+    else:
+        is_sub_hourly = pd.MultiIndex.from_frame(df[[site, pol]]).isin(sub_hourly.index)
+        group_cols = [site, pol, lat, lon]
+        expected = (pd.Timedelta(hours=1) / sub_hourly).rename('expected').reset_index() # expected counts by site and pollutant
+        hourly = (df[is_sub_hourly].set_index(ts).groupby(group_cols, dropna=False, observed=True)
+                .resample('h')[val].agg(['mean', 'count']).reset_index())
+        hourly = hourly.merge(expected, on=[site, pol]) # compare to expected count
+        hourly = hourly[hourly['count'] >= thresh * hourly['expected']].rename(columns={'mean': val})        
+        out = pd.concat([df[~is_sub_hourly], hourly.drop(columns=['count', 'expected'])], ignore_index=True)
+    return out
 
 def _validate_hourly(df,config_dict):
     """Check time resolution of measurements and exclude data that is not exactly hourly; error if no hourly data remains"""

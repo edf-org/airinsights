@@ -3,7 +3,7 @@ import dlt
 import pandas as pd
 import airinsights as air
 from airinsights.download import get_openaq, get_purpleair, get_esdr
-from airinsights.helpers import _dedupe, _localize_tz, _melt_long
+from airinsights.helpers import _dedupe, _localize_tz, _melt_long, _make_hourly
 
 def run_airinsights(aqdata:pd.DataFrame,config_dict:dict):
     """Runs all Air Insights analytical methods sequentially and returns a dict of the output tables"""
@@ -157,6 +157,7 @@ def run_pipeline(config_file:str | Path,standardize_cols = True):
     # run airinsights after formatting data
     # todo: make formatting step an option in helpers (read_aqdata_frame)
     df = _dedupe(_localize_tz(_melt_long(df, config_dict), config_dict), config_dict) # reformat raw data to airinsights using helpers
+    df = _make_hourly(df, config_dict) # average any sub-hourly data
     if standardize_cols: # if specified, rename the columns to dashboard defaults
         df = df.rename(columns={config_dict[user]: standard for user, standard in STANDARD_COLS.items()})
         config_dict.update(STANDARD_COLS) # update config dict for methods in pipeline
