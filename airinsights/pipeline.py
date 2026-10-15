@@ -83,6 +83,12 @@ def _resolve_storage_destination(storage_type, location):
         destination = dlt.destinations.filesystem(parent or '.')
     return destination, dataset, location
 
+def _read_table(pipe, table, storage_type, dataset):
+    """Read a table into pandas using dlt. BigQuery goes through ibis because .df() returns only subset of rows"""
+    if storage_type == 'bigquery':
+        return pipe.dataset().ibis().table(table, database=dataset).to_pyarrow().to_pandas()
+    return pipe.dataset().table(table).df()
+
 def _last_seen(pipe, table, keys, ts):
     """Gets last stored timestamp (UTC) per key from data source, empty dict if the table doesn't exist yet"""
     if table not in pipe.dataset().tables:
@@ -147,10 +153,7 @@ def run_pipeline(config_file:str | Path,standardize_cols = True):
     pipe.run(download_func(config_dict, seen), table_name='measurements', write_disposition='append', loader_file_format=file_format)
 
     # read raw measurements from database
-    if storage_type == 'bigquery':
-        df = pipe.dataset().ibis().table('measurements', database=dataset).to_pyarrow().to_pandas()
-    else:
-        df = pipe.dataset().table('measurements').df()
+    df = _read_table(pipe, 'measurements', storage_type, dataset)
     df[ts] = pd.to_datetime(df[ts], utc=True) # make ts timezone-aware before localizing
     df[site] = df[[ts, keys[0], site]].sort_values(ts).groupby(keys[0])[site].transform('last') # one name per site if they change
     
@@ -185,7 +188,7 @@ def run_pipeline(config_file:str | Path,standardize_cols = True):
 
         # join footprints to current local events (rebuilt each run) to have Event_ID for filtering
         if not local_events.empty and 'source_areas' in pipe.dataset().tables:
-            footprints = pipe.dataset().table('source_areas').df().drop_duplicates([site, ts], keep='last')
+            footprints = _read_table(pipe, 'source_areas', storage_type, dataset).drop_duplicates([site, ts], keep='last')
             footprints[ts] = pd.to_datetime(footprints[ts], utc=True).dt.tz_convert(local_events[ts].dt.tz)
             results['event_source_areas'] = local_events[[site, ts, 'event_ID']].drop_duplicates().merge(footprints, on=[site, ts])
 

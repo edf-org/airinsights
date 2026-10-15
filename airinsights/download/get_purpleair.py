@@ -38,7 +38,7 @@ def get_purpleair(config_dict,last_seen=None):
     purpleair_metadata = pd.DataFrame(data["data"], columns=data["fields"])
 
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    backfill = now - timedelta(days=365) # backfill to a year ago
+    backfill = now - timedelta(days=365 if not last_seen else 7) # backfill to a year ago
     
     # fetch sensors in parallel
     def run(row):

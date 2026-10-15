@@ -4,23 +4,17 @@ timestamp_format: "%Y-%m-%d %H:%M:%S"
 timestamp_tz: "UTC"
 local_tz: "America/New_York"
 site_col: "site_name"
-lat_col: "lat"
-lon_col: "lon"
+lat_col: "latitude"
+lon_col: "longitude"
 pollutant_map: 
-    "PM2_5": "PM2_5"
-    "PM10": "PM_10"
-    "O3": "O3"
-    "NO2": "NO2"
-    "SO2": "SO2"
-    "CO": "CO"
+    "PM2_5": "pm2_5"
 
 ### Required if data is 'long' format ###
 value_col: 
 
 ### Required for using data pipeline functions
-bounding_box: [-77.119759, 38.791645, -76.909395, 38.995110]
 storage_type: "bigquery"
 location: "valhalla_beta_dc"
 airtracker: true
-data_source: "esdr"
-#group_number: 2824
+data_source: "purpleair"
+group_number: 2824
