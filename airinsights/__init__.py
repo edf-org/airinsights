@@ -24,3 +24,6 @@ from .annual_trends import annual_trends
 from .helpers import read_aqdata_file,build_config,load_config,STANDARD_POLLUTANTS
 from .anomalous_sites import anomalous_sites
 from .source_area import source_area
+from .performance_evaluation import performance_evaluation
+from .data_completeness_evaluation import data_completeness_evaluation
+from .data_flagging import data_flagging
