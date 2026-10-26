@@ -23,7 +23,7 @@ from airinsights.helpers import _validate_hourly
 from matplotlib.lines import Line2D
 import matplotlib.patches as patches
 import os
-from internal_data_completeness_functions import _daily_comp
+from airinsights.internal_data_completeness_functions import _daily_comp
 
 
 

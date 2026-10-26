@@ -21,7 +21,7 @@ from matplotlib import transforms
 import matplotlib.patches as patches
 import warnings
 from airinsights.helpers import _validate_hourly
-from internal_data_completeness_functions import _daily_comp, _month_comp, _annual_comp
+from airinsights.internal_data_completeness_functions import _daily_comp, _month_comp, _annual_comp
 
 
 
