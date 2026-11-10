@@ -18,8 +18,25 @@ from datetime import timedelta
 import numpy as np
 
 
+#-- Default QC threshold checks for audit_data_flagging()
+default_range_thresholds = {'BC':{'min':-400,'max':500000},'CO':{'min':0,'max':15},'NO2':{'min':-1,'max':500},
+                                  'NO':{'min':-1,'max':3000},'O3':{'min':-5,'max':250},'PM2_5':{'min':-5,'max':1000},
+                                  'PM10':{'min':-5,'max':10000},'SO2':{'min':-5,'max':300},'VOC':{'min':-1,'max':300}}
 
-# Hourly to daily
+common_error_codes = [-9999, 865, 895, 995, 985, 999, 999.9, 985, 9999, 99999,1000,2000,3000,4000,5000,6000,7000,8000,9000]
+
+default_roc_thresholds = {'NO2':50,'O3':60,'PM2_5':150,'PM10':300}
+
+default_sticking_hrs_thresholds = {'NO2':{'stck_hr_count':10,'min_val':5},'O3':{'stck_hr_count':12,'min_val':10},
+                                         'PM2_5':{'stck_hr_count':6,'min_val':5},'PM10':{'stck_hr_count':6,'min_val':10},
+                                         'Generic':{'stck_hr_count':12,'min_val':0}}
+
+# Unrealistic pollutant comparisons, unr_ps: list of [x,y]  where unrealistic pollutant check is for x > y, and Flagging_Reason code needs to match order of [x,y]}
+# Note: this does not include unrealistic pollution behvaior for O3 which is defined separately in the audit_data_flagging code documentation
+unrealistic_pollutant_comparisons = {'unr_ps':[['PM2_5','PM10'],['NO2','NOx'],['NO','NOx']],'flagging_reason':['UP','UN','UN']}
+
+
+#-- Hourly to complete daily averages
 def _daily_comp(df:pd.DataFrame,config_dict:dict,comp_threshold:int) -> pd.DataFrame:
     """Average 1hr data to complete daily data."""
     
@@ -60,10 +77,11 @@ def _daily_comp(df:pd.DataFrame,config_dict:dict,comp_threshold:int) -> pd.DataF
 
 
 
-# Complete monthly data
+# Daily to complete monthly averages
 def _month_comp(df:pd.DataFrame,config_dict:dict,comp_threshold:int) -> pd.DataFrame:
     """Average daily data to complete monthly data."""
     
+    #TODO - add check that data is daily and throw error otherwise!!
 
     # Define the start and end of the complete month range of the dataset to get accurate total expected days per month to compare to for completeness (year is important due to leap years)
     # Need to define the date range from beginning of first data month to last day of last data month to assign completeness fully - can find last day of the last month using replace() and defining next following month
@@ -101,9 +119,11 @@ def _month_comp(df:pd.DataFrame,config_dict:dict,comp_threshold:int) -> pd.DataF
     return month_df
     
     
-# Annual comp based on monthly comp
+#-- Monthly to complete annual averages
 def _annual_comp(input_data:pd.DataFrame,config_dict:dict,comp_threshold:int,gap_test:bool=True) -> pd.DataFrame:
     """Average monthly data to complete annual data - per calendar year."""
+    
+    #TODO - add check that data is monthly and throw error otherwise!
     
     # Annual completeness requirement: meets completeness threshold, and no more than two consecutive months of incomplete data (proxy for seasonal completeness) - this latter requirement may be turned off by user
     month_count_thresh = round((comp_threshold/100)*12)
