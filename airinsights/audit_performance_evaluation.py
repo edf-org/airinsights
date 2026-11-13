@@ -77,7 +77,7 @@ def _compare_to_metrics(df,metrics,result_col):
 
 
 def audit_performance_evaluation(input_data : pd.DataFrame,
-                    config_dict : dict,
+                    config : dict,
                     eval_comp_dist_km : int | float | None = 1.5, #TODO - confirm this default comparison distance with EDF
                     regulatory_sites : list | None = [],
                     output_file_path : str | None = os.getcwd()
@@ -91,7 +91,7 @@ def audit_performance_evaluation(input_data : pd.DataFrame,
     input_data : pd.DataFrame
         A pandas DataFrame containing hourly AQ data (read in using read_aqdata_file()). Any regulatory data is expected to be in this input_data alongside sensor data.
     
-    config_dict : dict
+    config : dict
         A dictionary detailing the input_data structure, containing input parameter names and values. 
     
     eval_comp_dist_km : dict, optional
@@ -197,6 +197,7 @@ def audit_performance_evaluation(input_data : pd.DataFrame,
     
     #-- Read in data, make sure contains hourly, and has at least 25 days in its time range (requirement for evaluation)
     df = input_data.copy()
+    config_dict = config.copy()
     # Will raise an error if data only contains non-hourly freq or will print out how much data needed to be excluded
     df = _validate_hourly(df,config_dict)
     
