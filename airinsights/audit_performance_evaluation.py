@@ -89,10 +89,10 @@ def audit_performance_evaluation(input_data : pd.DataFrame,
     Parameters
     ----------
     input_data : pd.DataFrame
-        A pandas DataFrame containing hourly AQ data (read in using read_aqdata_file()). Any regulatory data is expected to be in this input_data alongside sensor data.
+        A pandas DataFrame containing hourly AQ data that was read using one of the helpers.read_aqdata_[x] routines.
     
     config : dict
-        A dictionary detailing the input_data structure, containing input parameter names and values. 
+         A dictionary containing input_data parameters that was read using one of the helpers.read_aqdata_[x] routines.
     
     eval_comp_dist_km : dict, optional
         max evaluation distance for nearest neighbor comparisons(km). Default or user-defined. int or float
