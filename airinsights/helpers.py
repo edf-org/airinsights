@@ -16,6 +16,7 @@ import yaml
 from pathlib import Path
 import pandas as pd
 import warnings
+import unicodedata
 
 STANDARD_POLLUTANTS = {
     "BC",
@@ -30,6 +31,8 @@ STANDARD_POLLUTANTS = {
     "SO2"
 }
 
+STANDARD_UNITS = {"ug/m3", "ng/m3", "ppb", "ppm"}
+
 def build_config(
     local_tz : str,
     timestamp_col: str = 'datetime',
@@ -38,19 +41,19 @@ def build_config(
     site_col: str = 'site_name',
     lat_col: str = 'lat',
     lon_col: str = 'lon',
-    pollutant_map: dict[str,str] = {"BC": "bc",
-                                    "PM1": "pm1",
-                                    "PM2_5": "pm25",
-                                    "PM10": "pm10",
-                                    "NO": "no",
-                                    "NO2": "no2",
-                                    "NOx": "nox",
-                                    "O3": "o3",
-                                    "CO": "co",
-                                    "SO2": "so2"},
+    pollutant_map: dict[str, dict[str, str]] = {"BC": {"name": "bc", "unit": "ug/m3"},
+                                                "PM1": {"name": "pm1", "unit": "ug/m3"},
+                                                "PM2_5": {"name": "pm25", "unit": "ug/m3"},
+                                                "PM10": {"name": "pm10", "unit": "ug/m3"},
+                                                "NO": {"name": "no", "unit": "ppb"},
+                                                "NO2": {"name": "no2", "unit": "ppb"},
+                                                "NOx": {"name": "nox", "unit": "ppb"},
+                                                "O3": {"name": "o3", "unit": "ppb"},
+                                                "CO": {"name": "co", "unit": "ppm"},
+                                                "SO2": {"name": "so2", "unit": "ppb"}},
     value_col: str = 'value',
     config_file: str = 'config/example_config.yaml'
-) -> str:
+) -> None:
     """
     Builds a new yaml config file and writes to specified file path to load and analyze data with AirInsights.
     
@@ -77,11 +80,12 @@ def build_config(
         Name of the latitude column
     lon_col : str, default 'lon'
         Name of the longitude column
-    pollutant_map :
+    pollutant_map : dict of dict
         Dictionary specifying the pollutant(s) to analyze. The keys must
-        be standard Airinsights pollutant names (e.g., "PM2_5", "NO2", "O3"),
-        and the values are the corresponding pollutant column names in the input
-        data. For example: {"PM2_5": "pm25", "NO2": "no2"}.
+        be standard Airinsights pollutant names (e.g., "PM2_5", "NO2", "O3"). 
+        Each value is a dict with the pollutant's 'name' in the input data (column header in wide data, or 
+        value in the pollutant column in long data) and its 'unit' (standard units: ug/m3, ng/m3, ppb, ppm).
+        For example: {"PM2_5": {"name": "pm25", "unit": "ug/m3"}, "NO2": {"name": "no2", "unit": "ppb"}}.
     value_col : str, default 'value'
         Applies only when input data is in long format. Name of the column containing the measurement values. 
     config_file : str, default 'config/example_config.yaml'
@@ -125,7 +129,7 @@ def load_config(
 
     Parameters
     ----------
-    config_file_path : str or Path
+    config_file : str or Path
         path to a YAML configuration file
     
     Returns
@@ -137,7 +141,7 @@ def load_config(
     config_path = Path(config_file)
 
     # --- Read in YAML config file ---
-    with open(config_path, 'r') as f:
+    with open(config_path, 'r', encoding='utf-8') as f:
         config_dict = yaml.safe_load(f)
 
     # --- Check for required parameters --- 
@@ -156,11 +160,16 @@ def load_config(
     if invalid:
         raise ValueError(f"Config has empty or invalid parameter(s): {', '.join(invalid)}")
 
-    # third, is pollutant_map correct? does it have key value pairs with nothing empty?
-    pollutant_map_errors = [standard_pollutant for standard_pollutant, pollutant_name in config_dict["pollutant_map"].items()
-                            if not standard_pollutant or not pollutant_name]
+    # third, does each pollutant in pollutant_map have a name and unit?
+    pollutant_map_errors = [standard_pollutant for standard_pollutant, pollutant_dict in config_dict["pollutant_map"].items() 
+                            if not (isinstance(pollutant_dict, dict) and pollutant_dict.get("name") and pollutant_dict.get("unit"))]
     if pollutant_map_errors:
-        raise ValueError("pollutant_map has invalid entries, check config. Each pollutant requires a standard name and name from input data, e.g. {'PM2_5': 'pm25'}.")
+        raise ValueError(
+            f"pollutant_map is invalid for: {', '.join(map(str, pollutant_map_errors))}. "
+            "Each pollutant needs 'name' and 'unit', e.g.:\n"
+            "pollutant_map: \n" \
+            "   PM2_5: {name: pm25, unit: ug/m3}"
+        )
 
     # fourth, do pollutant_map keys match standard pollutant names?
     non_standard = set(config_dict["pollutant_map"]) - STANDARD_POLLUTANTS # any non-standard pollutants?
@@ -244,7 +253,7 @@ def read_aqdata_bq(
 
 def _infer_format(df:pd.DataFrame,config_dict:dict):
     """Infer whether AQ dataframe is in long or wide format using the config pollutant names"""
-    input_pollutants = set(config_dict['pollutant_map'].values()) # get input names from pollutant map
+    input_pollutants = {pollutant_dict["name"] for pollutant_dict in config_dict['pollutant_map'].values()} # get input names from pollutant map
     matching_cols = input_pollutants & set(df.columns) # compare with column names
 
     if matching_cols: # if any matches, data is wide format
@@ -289,10 +298,11 @@ def _melt_long(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
 
     # infer the data format based on the pollutant_map in config
     is_wide, pollutant_col, value_col = _infer_format(df, config_dict)
+    input_pollutants = {pollutant_dict["name"] for pollutant_dict in config_dict['pollutant_map'].values()} # get input names from pollutant map
 
     # if data is wide format, melt to long
     if is_wide:
-        value_vars = [col for col in config_dict['pollutant_map'].values() if col in df.columns] # get column headers from pollutant map if in data
+        value_vars = [col for col in input_pollutants if col in df.columns] # get column headers from pollutant map if in data
         df = df.melt(id_vars=[c for c in df.columns if c not in value_vars],
                     value_vars = value_vars,
                     var_name=pollutant_col,
@@ -300,7 +310,12 @@ def _melt_long(df:pd.DataFrame,config_dict:dict) -> pd.DataFrame:
         
     # otherwise it's long format; keep only the pollutants in the map
     else:  
-        df = df[df[pollutant_col].isin(config_dict['pollutant_map'].values())]
+        df = df[df[pollutant_col].isin(input_pollutants)]
+
+    # attach standardized units from pollutant_map
+    unit_map = {pollutant_dict["name"]: _standardize_unit(pollutant_dict["unit"])
+             for pollutant_dict in config_dict['pollutant_map'].values()}
+    df['standard_units'] = df[pollutant_col].map(unit_map)
 
     # update pollutant and value column names of long format data in config_dict
     config_dict['value_col'] = value_col
@@ -410,3 +425,18 @@ def _validate_hourly(df,config_dict):
         raise ValueError("All data were excluded as non-hourly; this function requires hourly data.")
 
     return(df)
+
+def _standardize_unit(unit):
+    """Match unit text to a standard unit. Unknown units are kept as-is with a warning"""
+    clean = lambda text: (
+        unicodedata.normalize("NFKC", str(text)) # convert to standard unicode (like the micro symbol), remove superscript
+        .lower()                                 # make lowercase
+        .translate(str.maketrans("μ", "u", "/_-^ "))  # convert symbols and drop separators
+        .removesuffix("v")) # remove trailing v from e.g. ppbv
+    match = [s for s in STANDARD_UNITS if clean(s) == clean(unit)] # match to standard units
+    if not match:
+        warnings.warn(f"No standard unit found for '{unit}', keeping as-is. Standard units are: {', '.join(sorted(STANDARD_UNITS))}")
+        out = unit
+    else:
+        out = match[0]
+    return out

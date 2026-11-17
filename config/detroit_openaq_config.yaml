@@ -26,12 +26,12 @@ site_col: "site_name"
 lat_col: "lat"
 lon_col: "lon"
 pollutant_map: 
-    "PM2_5": "pm25" # fill these with info from your data
-    "PM10": "pm10" 
-    "O3": "o3" 
-    "NO2": "no2" 
-    "SO2": "so2" 
-    "CO": "co" 
+    "PM2_5": {name: "pm25", unit: "ug/m3"} # fill these with info from your data
+    "PM10": {name: "pm10", unit: "ug/m3"} 
+    "O3": {name: "o3", unit: "ppm"} 
+    "NO2": {name: "no2", unit: "ppm"} 
+    "SO2": {name: "so2", unit: "ppm"} 
+    "CO": {name: "co", unit: "ppm"} 
 
 ### Required if data is 'long' format ###
 value_col: "value"

@@ -26,7 +26,7 @@ site_col: "Site"
 lat_col: "Latitude"
 lon_col: "Longitude"
 pollutant_map: 
-  "BC": "hourly_BC"
+  "BC": {name: "hourly_BC", unit: "ug/m3"} # fill these with info from your data
 
 ### Required if data is 'long' format ###
 value_col: "value"
