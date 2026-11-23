@@ -22,7 +22,7 @@ from airinsights.audit_helpers import common_error_codes, unrealistic_pollutant_
 
 
 def audit_data_flagging(input_data : pd.DataFrame,
-                    config : dict,
+                    config_dict : dict,
                     range_thresholds : dict | None = {}, 
                     roc_thresholds : dict | None = {},
                     sticking_hrs_thresholds : dict | None = {},
@@ -42,7 +42,7 @@ def audit_data_flagging(input_data : pd.DataFrame,
     input_data : pd.DataFrame
         A pandas DataFrame containing hourly AQ data that was read using one of the helpers.read_aqdata_[x] routines.
     
-    config : dict
+    config_dict : dict
         A dictionary containing input_data parameters that was read using one of the helpers.read_aqdata_[x] routines.
     
     range_thresholds : dict, optional
@@ -124,14 +124,8 @@ def audit_data_flagging(input_data : pd.DataFrame,
 
     """
 
-
-
-    
-    
-    
     
     # Make a copy of the user input data and check if hourly (will raise an error if data only contains non-hourly freq or will print out how much data needed to be excluded)
-    config_dict = config.copy()
     df = input_data.copy()
     df = _validate_hourly(df,config_dict)
     
