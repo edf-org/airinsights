@@ -17,12 +17,12 @@ import plotly.graph_objects as go
 import sys
 from pathlib import Path
 from airinsights.helpers import _validate_hourly
-from airinsights.audit_helpers import default_range_thresholds, default_roc_thresholds, default_sticking_hrs_thresholds, common_error_codes, unrealistic_pollutant_comparisons
+from airinsights.audit_helpers import common_error_codes, unrealistic_pollutant_comparisons,_unit_conversions,_convert_thresholds
 
 
 
 def audit_data_flagging(input_data : pd.DataFrame,
-                    config_dict : dict,
+                    config : dict,
                     range_thresholds : dict | None = {}, 
                     roc_thresholds : dict | None = {},
                     sticking_hrs_thresholds : dict | None = {},
@@ -40,31 +40,34 @@ def audit_data_flagging(input_data : pd.DataFrame,
     Parameters
     ----------
     input_data : pd.DataFrame
-        A pandas DataFrame containing hourly AQ data (read in using read_aqdata_file)
+        A pandas DataFrame containing hourly AQ data that was read using one of the helpers.read_aqdata_[x] routines.
     
-    config_dict : dict
-        A dictionary detailing the input_data structure, containing input parameter names and values. 
+    config : dict
+        A dictionary containing input_data parameters that was read using one of the helpers.read_aqdata_[x] routines.
     
     range_thresholds : dict, optional
         min,max ranges per pollutant to use for range check. Default or user-defined. {str:{'min':int or float,'min':int or float}}
+        User-defined thresholds should be provided in the same units as data (and config).
         If only some pollutants specified in user-defined thresholds, program will try to fill in defaults.
-        Default range thresholds - {'BC':{'min':-400,'max':500000},'CO':{'min':0,'max':15},'NO2':{'min':-1,'max':500},
-                                          'NO':{'min':-1,'max':3000},'O3':{'min':-5,'max':250},'PM2_5':{'min':-5,'max':1000},
-                                          'PM10':{'min':-5,'max':10000},'SO2':{'min':-5,'max':300},'VOC':{'min':-1,'max':300}}
-        Default range threshold units - (BC ng/m^3, CO ppm, NO2 ppb, NO ppb, O3 ppb, PM2_5 ug/m^3, PM10 ug/m^3,SO2 ppb,VOC ppm)
+        All default thresholds are converted to the units provided in the config pollutant map.
+        See audit_helpers for default thresholds.
+        
     
     roc_thresholds : dict, optional
         Absolute rate of change thresholds per pollutant to use for rate of change check. Default or user-defined. {str:int or float}
+        User-defined thresholds should be provided in the same units as data (and config).
         If only some pollutants specified in user-defined thresholds, program will try to fill in defaults.
-        Default rate of change thresholds - {'NO2':50,'O3':60,'PM2_5':150,'PM10':300}
-        Default rate of change threshold units - (NO2 ppb, O3 ppb, PM2_5 ug/m^3, PM10 ug/m^3)
+        All default thresholds are converted to the units provided in the config pollutant map.
+        See audit_helpers for default thresholds.
+
     
     sticking_hrs_thresholds : dict, optional
         # of sticking hours and associated minimum value  per pollutant for sticking hour check. Default or user-defined. {str:{'stck_hr_count':int,'min_val':int or float}}
+        User-defined thresholds should be provided in the same units as data (and config).
         If only some pollutants specified in user-defined thresholds, program will try to fill in defaults.
-        Default sticking hrs thresholds - {'NO2':{'stck_hr_count':10,'min_val':5},'O3':{'stck_hr_count':12,'min_val':10},
-                                                 'PM2_5':{'stck_hr_count':6,'min_val':5},'PM10':{'stck_hr_count':6,'min_val':10}}
-        Default sticking hrs thresholds units - (NO2 ppb, O3 ppb, PM2_5 ug/m^3, PM10 ug/m^3)
+        All default thresholds are converted to the units provided in the config pollutant map.
+        See audit_helpers for default thresholds.
+
     
     remove_invalid : bool, default True
         Invalid data is automatically removed from DataFrame. If False, invalid data is kept in DataFrame.
@@ -78,17 +81,19 @@ def audit_data_flagging(input_data : pd.DataFrame,
     
     Returns
     -------
-    pd.DataFrame
-        A pandas DataFrame containing quality-controlled data with all input data columns and the following appended columns:
+    pd.DataFrame 
+        A pandas DataFrame containing quality-controlled data with timestamp_col, site_col, pollutant_col, value_col, and the following appended columns:
                 
             **QC_Flag**: quality control flags - Invalid(I) and Suspect(S) 
             
             **Flagging_Reason**: the check(s) or reason(s) that resulted in a QC_Flag
+            
+            Note: other non-config columns in the input_data will not be present in this output dataframe.
 
     Data Flagging Thresholds (.csv saved to output_file_path)
         A pandas DataFrame describing the flagging checks performed per pollutant and their respective thresholds and associated QC_Flag. Contains the following columns:
             
-            **pollutant_col**: pollutant in input_data (column name provided by user in config_dict)
+            **pollutant_col**: pollutant in input_data (column name provided by user in config)
            
             **Flagging_Check**: name of flagging check (e.g., range)
             
@@ -106,9 +111,9 @@ def audit_data_flagging(input_data : pd.DataFrame,
     If Suspect or Invalid data makes up 1% or more of all input data for a certain site and pollutant pair, 
         also outputs Data Flagging Highlights (.csv saved to output_file_path), highlighting site,pollutant pairs with 1% or more of data.
         
-        **site_col**: site of site,pollutant pair that was flagged (column name provided by user in config_dict)
+        **site_col**: site of site,pollutant pair that was flagged (column name provided by user in config)
         
-        **pollutant_col**: pollutant of site,pollutant pair that was flagged (column name provided by user in config_dict)
+        **pollutant_col**: pollutant of site,pollutant pair that was flagged (column name provided by user in config)
         
         **QC_Flag**: quality control flag that makes up 1% or more of data  - Invalid(I) and Suspect(S) 
         
@@ -126,34 +131,34 @@ def audit_data_flagging(input_data : pd.DataFrame,
     
     
     # Make a copy of the user input data and check if hourly (will raise an error if data only contains non-hourly freq or will print out how much data needed to be excluded)
+    config_dict = config.copy()
     df = input_data.copy()
     df = _validate_hourly(df,config_dict)
     
-    # Inverse pollutant map (to use for data mapping)
-    inv_pollutant_map = {v: k for k, v in config_dict['pollutant_map'].items()}
+    # Inverse pollutant map (just names, to use for easier data mapping later in code)
+    inv_pollutant_map = {config_dict['pollutant_map'][k]['name']: k for k in config_dict['pollutant_map'].keys()}
     
     # Add Standard Pollutant column to dataframe
     df['Standard_Pollutant'] = df[config_dict['pollutant_col']].map(inv_pollutant_map)
     
-    # Subset config_dict to pollutants that are actually in the dataset
+    # Define list of standard pollutants that are actually in input data
     p_in_df = df['Standard_Pollutant'].unique()
-    config_dict['pollutant_map'] = {k: config_dict['pollutant_map'][k] for k in p_in_df}
-    
 
+    #-- Convert default thresholds to units provided in config_dict
+    cnv_default_range_thresholds, cnv_default_roc_thresholds, cnv_default_sticking_hrs_thresholds = _convert_thresholds(config_dict)
+    
     # Define generic thresholds for ROC and sticking to reference in dictionary merges below
     #TODO - Discuss - setting generic ROC threshold based on unQC'ed data - could move this after range check so that invalid high/low data doesn't bias this?
-    generic_roc = (round((df.groupby('Standard_Pollutant')[config_dict['value_col']].mean() * 10),3).to_dict())
+    generic_roc = abs(round((df.groupby('Standard_Pollutant')[config_dict['value_col']].mean() * 10),3)).to_dict()
+    generic_sticking = {p : cnv_default_sticking_hrs_thresholds.get('Generic') for p in p_in_df}
     
-    generic_sticking = {p : default_sticking_hrs_thresholds.get('Generic') for p in p_in_df}
-    
-        
     #--Set default or generic thresholds where not defined (for duplicate keys, righthand dict values trump lefthand side in each union pair)
     
-    range_thresholds = default_range_thresholds | range_thresholds
+    range_thresholds = cnv_default_range_thresholds | range_thresholds
     
-    roc_thresholds = generic_roc | (default_roc_thresholds | roc_thresholds)
+    roc_thresholds = generic_roc | (cnv_default_roc_thresholds | roc_thresholds)
     
-    sticking_hrs_thresholds = generic_sticking | (default_sticking_hrs_thresholds | sticking_hrs_thresholds)
+    sticking_hrs_thresholds = generic_sticking | (cnv_default_sticking_hrs_thresholds | sticking_hrs_thresholds)
     
 
     #-- Check broad format of thresholds and other input fields
@@ -226,7 +231,7 @@ def audit_data_flagging(input_data : pd.DataFrame,
     # Print status statement
     print('Data are undergoing invalid flagging review....',end='\n\n')
     
-    #-- Add flagging-related columns and create group_cols (used for ROC calculations) and full_count (used later for % of flagged data)
+    #-- Add flagging-related columns and create full_count (used later for % of flagged data)
     
     # Organize df
     df = df.sort_values(by=[config_dict['site_col'],config_dict['pollutant_col'],config_dict['timestamp_col']]).reset_index(drop=True)
@@ -234,9 +239,8 @@ def audit_data_flagging(input_data : pd.DataFrame,
     # Add flagging-related columns to add to over coarse of data flagging
     df['QC_Flag'] = '' #Create new column in df for QC Flags (initially blank)
     df['Flagging_Reason'] = '' # Create new column in df for Suspect Reasons (initially blank)
-
+    
     # Count number of non-NaN entries per site,pollutant pair before any QC (used later to calculate % of flagged data) 
-    group_cols = [c for c in df.columns if c not in [config_dict['value_col'], config_dict['timestamp_col'],'QC_Flag','Flagging_Reason']]
     full_count = df.groupby([config_dict['site_col'],config_dict['pollutant_col']])[config_dict['value_col']].count().reset_index().rename(columns = {config_dict['value_col'] :'Full_Count'})
     
 
@@ -264,8 +268,8 @@ def audit_data_flagging(input_data : pd.DataFrame,
     print('Data are undergoing suspect flagging review...',end='\n\n')
     
     #-- Calculate rate of change (ROC) and rolling ROC (after invalid data checks) to use across suspect checks
-    df['ROC'] = abs(df.groupby(group_cols)[config_dict['value_col']].diff().reset_index(drop=True))    
-    df['ROC_roll'] = df.groupby(group_cols)['ROC'].transform(lambda r: r.rolling(window=2, min_periods=1).mean().shift(-1))
+    df['ROC'] = abs(df.groupby([config_dict['site_col'],config_dict['pollutant_col']])[config_dict['value_col']].diff().reset_index(drop=True))    
+    df['ROC_roll'] = df.groupby([config_dict['site_col'],config_dict['pollutant_col']])['ROC'].transform(lambda r: r.rolling(window=2, min_periods=1).mean().shift(-1))
     
     
     #-- Perform common error code checks on all data (regardless of pollutant) 
@@ -286,7 +290,7 @@ def audit_data_flagging(input_data : pd.DataFrame,
     
     #-- Perform Sticking check
     
-    # Note: don't need to group by group_cols again, since ROC is calculated based on that earlier
+    # Note: don't need to group by site,pollutant again, since ROC is calculated based on that earlier
     df['Sticking_Count'] = df.groupby((df['ROC']!=0).cumsum()).transform('size')
     
     # Apply sticking_hrs_thresholds to data
@@ -304,7 +308,7 @@ def audit_data_flagging(input_data : pd.DataFrame,
     #-- Perform "Unrealistic Pollution Behavior" checks for relevant pollutants
     
     #-- Perform Unrealistic Pollution Behavior check for O3 (different format than other unr checks)
-    if 'O3' in config_dict['pollutant_map'].keys():
+    if 'O3' in p_in_df:
         
         # Set suspect check condition for O3
         unr_o3_condition = ((df['Standard_Pollutant']=='O3') 
@@ -330,11 +334,17 @@ def audit_data_flagging(input_data : pd.DataFrame,
         unr_sr = unrealistic_pollutant_comparisons['flagging_reason'][i]
         
         # Only review data for unr checks if all pollutants per comparison pair are present
-        if all(unr_p in config_dict['pollutant_map'].keys() for unr_p in unr_lst):
+        if all(unr_p in p_in_df for unr_p in unr_lst):
             
             # Pivoting wider to find site + timestamp pairs where certain pollutants are showing unrealistic pollutant behavior - just using df_pivot to find indexes, not melting back to df (since flagging columns are pollutant-specific and don't work in wide format)
             index_cols = [config_dict['timestamp_col'],config_dict['site_col']]
             df_pivot = df.pivot(index=index_cols,columns='Standard_Pollutant',values = config_dict['value_col']).reset_index()
+            
+            # Apply unit conversion where unr_lst pair does not have same units in dataframe - convert to unit of first pollutant in list (data remains the same in df)
+            if config_dict['pollutant_map'][unr_lst[0]]['unit'] != config_dict['pollutant_map'][unr_lst[1]]['unit']:
+
+                df_pivot[unr_lst[1]] = (df_pivot[unr_lst[1]]
+                                        .apply(lambda x: _unit_conversions(x,config_dict['pollutant_map'][unr_lst[1]]['unit'],config_dict['pollutant_map'][unr_lst[0]]['unit'])))
 
             # Get site + timestamp pair where any unrealistic pollutant comparison (x>y)
             unr_sites_dates = pd.MultiIndex.from_frame(df_pivot[(df_pivot[unr_lst[0]] > df_pivot[unr_lst[1]])][[config_dict['site_col'],config_dict['timestamp_col']]])
@@ -369,56 +379,62 @@ def audit_data_flagging(input_data : pd.DataFrame,
     #TODO - In future version, distinguish plots by Flagging Reason - so that user can review more specifically per flagging reason and concur that way
     elif 'S' in df['QC_Flag'].unique() and not remove_suspect:
         
-        
-        # Separate Suspect Reasons by space (every two letters - all flagging codes are two letters long)
+        # Separate Flagging Reason by space (every two letters - all flagging codes are two letters long)
         df['Flagging_Reason'] = df['Flagging_Reason'].apply(lambda x: ' '.join(re.findall('..',x)))
-        
         
         # Merge back into full_df that has all data (none naned) but leave out df's Invalid flagged to not duplicate/overwrite with nans
         full_df = pd.concat([df[df['QC_Flag']!='I'],full_df],axis=0).drop_duplicates().sort_values(by=[config_dict['site_col'],config_dict['pollutant_col'],config_dict['timestamp_col']])
 
-        
         suspect_sites_pollutants = full_df[full_df['QC_Flag']=='S'][[config_dict['site_col'],config_dict['pollutant_col']]].drop_duplicates().reset_index(drop=True)
         
-        # Print interactive plots for all sites/pollutants with suspect data
+        #-- Print interactive plots for all sites/pollutants with Suspect data
         
         # Create subfolder in output_file_path to store suspect time series for review
         suspect_folder = Path(output_file_path,'Suspect Data for Review/')
-        os.makedirs(suspect_folder,exist_ok=True)
+        os.makedirs(suspect_folder,exist_ok=True) # use existing folder in case
         
         plot_count = 0
         
         print('Plotting suspect data for review...')
         
+        #-- Loop through each suspect site and pollutant and plot valid, suspect, and invalid data
         for _,row in suspect_sites_pollutants.iterrows():
             
             sus_site = row[config_dict['site_col']]
             
             sus_p = row[config_dict['pollutant_col']]
             
+            # Define unit of pollutant to add to plot labels
+            sus_u = config_dict['pollutant_map'][inv_pollutant_map[sus_p]]['unit']
+            
             p_df = full_df[(full_df[config_dict['site_col']]==sus_site) & (full_df[config_dict['pollutant_col']]==sus_p)]
                         
             p_df_sus = p_df[p_df['QC_Flag']=='S']
             
-            # Plot all data in sus_p_df, highlighting suspect data in red, and including Flagging_Reason in hover over text
+            #-- Ploting all data, highlighting suspect (and any invalid data for context)
             
             fig = go.Figure()
-            # Have to define customdata if want to show per value Suspect Reason (x, y or customdata recognized with %). <extra></extra> removes the hover legend text outside of the box that default appears
+            
+            # Valid (or non-flagged) data
+            # Note: <extra></extra> in hovertext removes the extra hover legend text outside of the box that default appears
             fig.add_trace(go.Scatter(x=list(p_df[config_dict['timestamp_col']]), y=list(p_df[config_dict['value_col']]), name='Valid',mode='lines+markers',marker_color='dimgrey',hovertemplate=("%{x}<br>" f"{sus_p}: " + "%{y}<extra></extra>")))
-                     
+            
+            # Suspect data
+            # Note: need to specify customdata here to use Flagging Reason in hover text
             fig.add_trace(go.Scatter(x=list(p_df_sus[config_dict['timestamp_col']]), y=list(p_df_sus[config_dict['value_col']]), name='Suspect',mode='markers',marker_color='orange',customdata=p_df_sus['Flagging_Reason'],hovertemplate=("%{x}<br>" f"{sus_p}: " + "%{y}<br>" "Flagging Reason Code: %{customdata}<extra></extra>")))
             
-            # Highlight invalid data specifically in red (helpful for reviewing suspect alongside invalid for context)
+            # Invalid data (use full_df which has invalid data stored, regardless of user remvoing invalid data)
             p_df_inv = full_df[(full_df[config_dict['site_col']]==sus_site) & (full_df['QC_Flag']=='I') & (full_df[config_dict['pollutant_col']]==sus_p)]
             fig.add_trace(go.Scatter(x=list(p_df_inv[config_dict['timestamp_col']]), y=list(p_df_inv[config_dict['value_col']]), name='Invalid',mode='markers',marker_color='red',customdata=p_df_inv['Flagging_Reason'],hovertemplate=("%{x}<br>" f"{sus_p}: " + "%{y}<br>" "Flagging Reason Code: %{customdata}<extra></extra>")))
                                                                               
-
+            #-- Add title and axes labels
+            
             title = f'Suspect {sus_p} at {sus_site}'
             n = ((p_df[config_dict['timestamp_col']].max() - p_df[config_dict['timestamp_col']].min()).days*24)/10 # number of hours to space x tick marks by
             
             fig.update_layout(title=title,
                                xaxis_title=config_dict['timestamp_col'],
-                               yaxis_title=f'Hourly {sus_p}', #TODO add unit to y axis once added to config_dict?
+                               yaxis_title=f'Hourly {sus_p} ({sus_u})',
                                legend=dict(title='Legend', orientation='v', y=1.1, x=1))
             
             fig.update_xaxes(
@@ -427,81 +443,81 @@ def audit_data_flagging(input_data : pd.DataFrame,
                 tickformat="%Y-%m-%d %H",
                 tickangle = 45)
             
-            
             filename= title + '.html'
             
             fig.write_html(suspect_folder / filename)
             
+            # Add to plot count (to inform user)
             plot_count += 1
             
-            
+        #TODO - update unrealistic pollutant comparison code in future and include in next release    
         #-- If there are flags for unrealistic pollutant comparisons specifically, plot this data together as well for more effective review (have to check for substrings since can have multiple Flagging_Reasons)
         # Note: these plots will not include other highlighted suspect or invalid data
         
-        # Colors to use when plotting unrealistic pollutant comparisons to distinguish between two pollutants
-        up_colrs = ['forestgreen','cornflowerblue']
-        if any(df['Flagging_Reason'].str.contains('|'.join([unr_r for unr_r in unrealistic_pollutant_comparisons['flagging_reason']]))):
+        # Colors to use when plotting unrealistic pollutant comparisons to distinguish between pollutants (max 3 for UN)
+        # up_colrs = ['forestgreen','cornflowerblue','mediumorchid']
+        # if any(df['Flagging_Reason'].str.contains('|'.join([unr_r for unr_r in unrealistic_pollutant_comparisons['flagging_reason']]))):
             
-            for unr_r in unrealistic_pollutant_comparisons['flagging_reason']:
+        #     for unr_r in unrealistic_pollutant_comparisons['flagging_reason']:
                 
-                unr_sites = df[df['Flagging_Reason']==unr_r][[config_dict['site_col'],config_dict['pollutant_col']]].drop_duplicates().reset_index(drop=True)
+        #         unr_sites = df[df['Flagging_Reason']==unr_r][[config_dict['site_col'],config_dict['pollutant_col']]].drop_duplicates().reset_index(drop=True)
 
-                for us in unr_sites[config_dict['site_col']].unique():
+        #         for us in unr_sites[config_dict['site_col']].unique():
                     
-                    # Define pollutants related to this unr flag
-                    unr_ps = unr_sites.loc[unr_sites[config_dict['site_col']]==us,config_dict['pollutant_col']].tolist()
+        #             # Define pollutants related to this unr flag
+        #             unr_ps = unr_sites.loc[unr_sites[config_dict['site_col']]==us,config_dict['pollutant_col']].tolist()
                     
-                    fig = go.Figure()
+        #             fig = go.Figure()
             
                     
-                    # Add red vertical lines to identify unrealistic data timestamps on plot
-                    unr_dts = (df[(df[config_dict['site_col']]==us) & (df['Flagging_Reason']==unr_r)][config_dict['timestamp_col']]).unique()
-                    # Annotations with datetime x for plotly vline have a bug, so instead plot first instance and add to legend and don't add rest
-                    fig.add_vline(x=unr_dts[0], line_width=3, line_color="red", opacity=0.3,showlegend=True,name='Suspect')#layer='below')
-                    # Add remaining vertical lines 
-                    for d in range(1,len(unr_dts)):
-                        unr_dt = unr_dts[d]
-                        fig.add_vline(x=unr_dt, line_width=3, line_color='red', opacity=0.3)#layer='below')
+        #             # Add red vertical lines to identify unrealistic data timestamps on plot
+        #             unr_dts = (df[(df[config_dict['site_col']]==us) & (df['Flagging_Reason']==unr_r)][config_dict['timestamp_col']]).unique()
+        #             # Annotations with datetime x for plotly vline have a bug, so instead plot first instance and add to legend and don't add rest
+        #             fig.add_vline(x=unr_dts[0], line_width=3, line_color="orange", opacity=0.3,showlegend=True,name='Suspect')#layer='below')
+        #             # Add remaining vertical lines 
+        #             for d in range(1,len(unr_dts)):
+        #                 unr_dt = unr_dts[d]
+        #                 fig.add_vline(x=unr_dt, line_width=3, line_color='orange', opacity=0.3)#layer='below')
                    
-                    # Plot each pollutant
-                    for ip in range(0,len(unr_ps)):
+        #             # Plot each pollutant
+        #             for ip in range(0,len(unr_ps)):
                         
-                        up = unr_ps[ip]
-                        up_colr = up_colrs[ip]                        
+        #                 up = unr_ps[ip]
+        #                 up_colr = up_colrs[ip]                        
                         
-                        p_df = df[(df[config_dict['site_col']]==us) & (df[config_dict['pollutant_col']]== up)]# & (df['Flagging_Reason']!=unr_r)]
+        #                 p_df = df[(df[config_dict['site_col']]==us) & (df[config_dict['pollutant_col']]== up)]# & (df['Flagging_Reason']!=unr_r)]
                         
-                        # Have to define customdata if want to show per value Suspect Reason (x, y or customdata recognized with %). <extra></extra> removes the hover legend text outside of the box that default appears
-                        # TODO - add unit to hover text once added to config_dict
-                        fig.add_trace(go.Scatter(x=list(p_df[config_dict['timestamp_col']]), y=list(p_df[config_dict['value_col']]),name=up, mode='lines+markers',marker_color=up_colr,hovertemplate=(f"{up}: " + "%{y}<extra></extra>")))
+        #                 # Have to define customdata if want to show per value Suspect Reason (x, y or customdata recognized with %). <extra></extra> removes the hover legend text outside of the box that default appears
+        #                 # TODO - add unit to hover text once added to config_dict
+        #                 fig.add_trace(go.Scatter(x=list(p_df[config_dict['timestamp_col']]), y=list(p_df[config_dict['value_col']]),name=up, mode='lines+markers',marker_color=up_colr,hovertemplate=(f"{up}: " + "%{y}<extra></extra>")))
                           
 
-                    # Add title and subtitles to                                            
-                    title = f"Unrealistic Pollutant Behavior for {(' and '.join(unr_ps))} at {us}"
-                    subtitle = '<br><sup>Note: Other Suspect or Invalid data is not highlighted in this figure.'
-                    n = ((p_df[config_dict['timestamp_col']].max() - p_df[config_dict['timestamp_col']].min()).days*24)/10 # number of hours to space x tick marks by
+        #             # Add title and subtitles to                                            
+        #             title = f"Unrealistic Pollutant Behavior for {(' and '.join(unr_ps))} at {us}"
+        #             subtitle = '<br><sup>Note: Other Suspect or Invalid data is not highlighted in this figure.'
+        #             n = ((p_df[config_dict['timestamp_col']].max() - p_df[config_dict['timestamp_col']].min()).days*24)/10 # number of hours to space x tick marks by
                     
-                    fig.update_layout(title=title+subtitle,
-                                       xaxis_title=config_dict['timestamp_col'],
-                                       yaxis_title='Hourly Data [unit placeholder]', #TODO add unit to y axis once thats added in config_dict
-                                       legend=dict(title='Legend', orientation='v', y=1.1, x=1),
-                                       hovermode="x unified") # one hover text per x axis point
+        #             fig.update_layout(title=title+subtitle,
+        #                                xaxis_title=config_dict['timestamp_col'],
+        #                                yaxis_title='Hourly Data [unit placeholder]', #TODO add unit to y axis once thats added in config_dict
+        #                                legend=dict(title='Legend', orientation='v', y=1.1, x=1),
+        #                                hovermode="x unified") # one hover text per x axis point
                     
-                    fig.update_xaxes(
-                        tick0 = df.index[0],
-                        dtick=round(n*60*60*1000),
-                        tickformat="%Y-%m-%d %H",
-                        tickangle = 45)
+        #             fig.update_xaxes(
+        #                 tick0 = df.index[0],
+        #                 dtick=round(n*60*60*1000),
+        #                 tickformat="%Y-%m-%d %H",
+        #                 tickangle = 45)
                                         
-                    filename= title + '.html'
+        #             filename= title + '.html'
                     
-                    fig.write_html(suspect_folder / filename)
+        #             fig.write_html(suspect_folder / filename)
                     
-                    plot_count += 1
+        #             plot_count += 1
                 
         print(f'{plot_count} plots of suspect data have been saved to subfolder Suspect Data for Review in {output_file_path}.',end='\n\n')
     
-        # Ask user whether suspect data should be kept as is or removed (convert to lower case and remove any spaces user may have entered)
+        #-- Ask user whether suspect data should be kept as is or removed (convert to lower case and remove any spaces user may have entered)
         #TODO - In future version, allow user to concur per Flagging Reason for suspect data (e.g., can choose to remove suspect sticking data but not suspect rate of change)
         print("Please review data flagged as 'S' (Suspect) in these plots before proceeding...")
         suspect_action = input("Should suspect data be removed? (Y - yes/N - no/X - exit)").lower().replace(' ','')
@@ -559,10 +575,10 @@ def audit_data_flagging(input_data : pd.DataFrame,
         print('Recommend reviewing these site(s), pollutant(s) to diagnose cause of recurring data flags.',end='\n\n')
 
        
-    #-- Organize and save out threshold table
+    #-- Organize and save out threshold table (convert Standard Pollutant column to config pollutant_col)
     
     threshold_tbl = pd.DataFrame(threshold_tbl)
-    threshold_tbl.insert(0,config_dict['pollutant_col'],threshold_tbl['Standard_Pollutant'].map(lambda pn: config_dict['pollutant_map'][pn]))
+    threshold_tbl.insert(0,config_dict['pollutant_col'],threshold_tbl['Standard_Pollutant'].map(lambda pn: config_dict['pollutant_map'][pn]['name']))
     threshold_tbl = threshold_tbl.sort_values(by=config_dict['pollutant_col']).drop('Standard_Pollutant',axis=1)
     threshold_tbl.to_csv(Path(output_file_path,'Data Flagging Thresholds.csv'),index=False)
     print(f"Thresholds for data flagging have been saved to {output_file_path}.")
